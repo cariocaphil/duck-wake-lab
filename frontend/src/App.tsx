@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { DuckControls } from "./components/DuckControls";
 import { WakeCanvas } from "./components/WakeCanvas";
-import { DEFAULT_PARAMETERS, type DuckParameters } from "./types";
+import {
+  DEFAULT_PARAMETERS,
+  PHYSICS_LEVEL_LABELS,
+  type DuckParameters,
+} from "./types";
 import "./App.css";
 
 function App() {
@@ -42,7 +46,7 @@ function App() {
           <div>
             <dt>Physics level</dt>
             <dd data-testid="param-physics">
-              {parameters.physicsLevel === "kelvin" ? "Kelvin" : "Advanced"}
+              {PHYSICS_LEVEL_LABELS[parameters.physicsLevel]}
             </dd>
           </div>
         </dl>

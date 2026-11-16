@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { DuckParameters } from "../types";
+import { PHYSICS_LEVEL_LABELS, type DuckParameters } from "../types";
 
 interface WakeCanvasProps {
   parameters: DuckParameters;
@@ -72,7 +72,7 @@ function drawPlaceholder(
   context.font = "13px system-ui, sans-serif";
   context.fillStyle = "rgba(255, 255, 255, 0.75)";
   context.fillText(
-    `${parameters.species} · ${parameters.speed.toFixed(2)} m/s · Kelvin model`,
+    `${parameters.species} · ${parameters.speed.toFixed(2)} m/s · ${PHYSICS_LEVEL_LABELS[parameters.physicsLevel]} model`,
     centerX,
     height * 0.9,
   );

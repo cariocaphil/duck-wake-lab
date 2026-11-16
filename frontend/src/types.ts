@@ -2,6 +2,11 @@ export type DuckSpecies = "Mallard" | "Teal" | "Muscovy";
 
 export type PhysicsLevel = "kelvin" | "advanced";
 
+export const PHYSICS_LEVEL_LABELS: Record<PhysicsLevel, string> = {
+  kelvin: "Kelvin",
+  advanced: "Advanced",
+};
+
 export interface DuckParameters {
   species: DuckSpecies;
   bodyLength: number;
