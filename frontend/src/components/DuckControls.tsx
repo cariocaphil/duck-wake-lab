@@ -1,5 +1,5 @@
-import type { DuckParameters, DuckSpecies, PhysicsLevel } from "../types";
-import { DUCK_SPECIES } from "../types";
+import type { DuckParameters } from "../types";
+import { DUCK_SPECIES, isDuckSpecies } from "../types";
 
 interface DuckControlsProps {
   parameters: DuckParameters;
@@ -23,9 +23,12 @@ export function DuckControls({ parameters, onChange }: DuckControlsProps) {
         <select
           aria-label="Duck species"
           value={parameters.species}
-          onChange={(event) =>
-            update("species", event.target.value as DuckSpecies)
-          }
+          onChange={(event) => {
+            const { value } = event.target;
+            if (isDuckSpecies(value)) {
+              update("species", value);
+            }
+          }}
         >
           {DUCK_SPECIES.map((species) => (
             <option key={species} value={species}>
@@ -73,7 +76,7 @@ export function DuckControls({ parameters, onChange }: DuckControlsProps) {
             name="physicsLevel"
             value="kelvin"
             checked={parameters.physicsLevel === "kelvin"}
-            onChange={() => update("physicsLevel", "kelvin" as PhysicsLevel)}
+            onChange={() => update("physicsLevel", "kelvin")}
           />
           Kelvin
         </label>
@@ -86,7 +89,7 @@ export function DuckControls({ parameters, onChange }: DuckControlsProps) {
             value="advanced"
             disabled
             checked={parameters.physicsLevel === "advanced"}
-            onChange={() => update("physicsLevel", "advanced" as PhysicsLevel)}
+            onChange={() => update("physicsLevel", "advanced")}
           />
           Advanced (coming soon)
         </label>

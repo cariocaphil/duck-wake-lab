@@ -1,4 +1,10 @@
-export type DuckSpecies = "Mallard" | "Teal" | "Muscovy";
+export const DUCK_SPECIES = ["Mallard", "Teal", "Muscovy"] as const;
+
+export type DuckSpecies = (typeof DUCK_SPECIES)[number];
+
+export function isDuckSpecies(value: string): value is DuckSpecies {
+  return (DUCK_SPECIES as readonly string[]).includes(value);
+}
 
 export type PhysicsLevel = "kelvin" | "advanced";
 
@@ -13,12 +19,6 @@ export interface DuckParameters {
   speed: number;
   physicsLevel: PhysicsLevel;
 }
-
-export const DUCK_SPECIES: readonly DuckSpecies[] = [
-  "Mallard",
-  "Teal",
-  "Muscovy",
-] as const;
 
 export const DEFAULT_PARAMETERS: DuckParameters = {
   species: "Mallard",
