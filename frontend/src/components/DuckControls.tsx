@@ -77,6 +77,8 @@ export function DuckControls({ parameters, onChange }: DuckControlsProps) {
           />
           Kelvin
         </label>
+        {/* Disabled until the advanced physics level lands in a future PR.
+            The checked/onChange wiring is kept so enabling it is a one-line change. */}
         <label className="coming-soon">
           <input
             type="radio"
