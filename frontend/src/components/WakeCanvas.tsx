@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { DuckParameters } from "../types";
 
 interface WakeCanvasProps {
@@ -81,7 +81,31 @@ function drawPlaceholder(
 export function WakeCanvas({ parameters }: WakeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Latest parameters, readable from the long-lived ResizeObserver callback
+  // without re-creating the observer on every parameter change.
+  const parametersRef = useRef(parameters);
+  // Current CSS-pixel size and device pixel ratio of the canvas.
+  const sizeRef = useRef({ width: 0, height: 0, dpr: 1 });
 
+  // Stable (only reads refs), so effects depending on it never re-run.
+  const draw = useCallback((): void => {
+    const canvas = canvasRef.current;
+    const { width, height, dpr } = sizeRef.current;
+    if (!canvas || width === 0 || height === 0) {
+      return;
+    }
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return;
+    }
+
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawPlaceholder(context, width, height, parametersRef.current);
+  }, []);
+
+  // Resize the canvas backing store only when the container size changes.
+  // Runs once on mount; the observer lives until unmount.
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -96,21 +120,16 @@ export function WakeCanvas({ parameters }: WakeCanvasProps) {
 
       const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const displayWidth = Math.max(1, Math.floor(rect.width));
-      const displayHeight = Math.max(1, Math.floor(rect.height));
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
 
-      canvas.width = displayWidth * dpr;
-      canvas.height = displayHeight * dpr;
-      canvas.style.width = `${displayWidth}px`;
-      canvas.style.height = `${displayHeight}px`;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      sizeRef.current = { width, height, dpr };
 
-      const context = canvas.getContext("2d");
-      if (!context) {
-        return;
-      }
-
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawPlaceholder(context, displayWidth, displayHeight, parameters);
+      draw();
     }
 
     resizeAndDraw();
@@ -121,7 +140,13 @@ export function WakeCanvas({ parameters }: WakeCanvasProps) {
     return () => {
       observer.disconnect();
     };
-  }, [parameters]);
+  }, [draw]);
+
+  // Parameter changes only repaint; they never touch canvas size or the observer.
+  useEffect(() => {
+    parametersRef.current = parameters;
+    draw();
+  }, [parameters, draw]);
 
   return (
     <section className="visualization" aria-label="Wake visualization">
