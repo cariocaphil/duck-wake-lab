@@ -61,14 +61,17 @@ def kelvin_wake_boundaries(
 
     tan_theta = math.tan(KELVIN_HALF_ANGLE_RAD)
     s_m = np.linspace(0.0, wake_length_m, n_points)
+    # Separate arrays so in-place edits to one arm cannot mutate the other.
+    port_x_m = -s_m
+    starboard_x_m = port_x_m.copy()
     port_y_m = s_m * tan_theta
     starboard_y_m = -s_m * tan_theta
 
     return KelvinWakeBoundaries(
         half_angle_rad=KELVIN_HALF_ANGLE_RAD,
         half_angle_deg=KELVIN_HALF_ANGLE_DEG,
-        port_x_m=-s_m,
+        port_x_m=port_x_m,
         port_y_m=port_y_m,
-        starboard_x_m=-s_m,
+        starboard_x_m=starboard_x_m,
         starboard_y_m=starboard_y_m,
     )

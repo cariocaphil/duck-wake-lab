@@ -25,6 +25,16 @@ def test_wake_boundary_symmetry() -> None:
     np.testing.assert_allclose(wake.port_x_m, wake.starboard_x_m)
 
 
+def test_port_and_starboard_x_arrays_are_independent() -> None:
+    """Port and starboard x-arrays must not alias the same buffer."""
+    wake = kelvin_wake_boundaries(wake_length_m=5.0, n_points=11)
+    assert wake.port_x_m is not wake.starboard_x_m
+
+    original_starboard = wake.starboard_x_m.copy()
+    wake.port_x_m[0] = -999.0
+    np.testing.assert_array_equal(wake.starboard_x_m, original_starboard)
+
+
 def test_wake_coordinates_extend_behind_duck() -> None:
     """All wake samples lie on or behind the duck (x <= 0)."""
     wake = kelvin_wake_boundaries(wake_length_m=3.0, n_points=11)
