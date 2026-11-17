@@ -8,17 +8,9 @@ from dataclasses import dataclass
 import numpy as np
 
 
-def kelvin_half_angle_rad() -> float:
-    """Return the theoretical Kelvin wake half-angle in radians.
-
-    The deep-water Kelvin envelope half-angle is arcsin(1/3).
-    """
-    return math.asin(1.0 / 3.0)
-
-
-def kelvin_half_angle_deg() -> float:
-    """Return the theoretical Kelvin wake half-angle in degrees."""
-    return math.degrees(kelvin_half_angle_rad())
+# Deep-water Kelvin envelope half-angle: arcsin(1/3) ≈ 19.47°.
+KELVIN_HALF_ANGLE_RAD = math.asin(1.0 / 3.0)
+KELVIN_HALF_ANGLE_DEG = math.degrees(KELVIN_HALF_ANGLE_RAD)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,15 +59,14 @@ def kelvin_wake_boundaries(
     if type(n_points) is not int or n_points < 2:
         raise ValueError("n_points must be an integer >= 2")
 
-    theta_rad = kelvin_half_angle_rad()
-    tan_theta = math.tan(theta_rad)
+    tan_theta = math.tan(KELVIN_HALF_ANGLE_RAD)
     s_m = np.linspace(0.0, wake_length_m, n_points)
     port_y_m = s_m * tan_theta
     starboard_y_m = -s_m * tan_theta
 
     return KelvinWakeBoundaries(
-        half_angle_rad=theta_rad,
-        half_angle_deg=kelvin_half_angle_deg(),
+        half_angle_rad=KELVIN_HALF_ANGLE_RAD,
+        half_angle_deg=KELVIN_HALF_ANGLE_DEG,
         port_x_m=-s_m,
         port_y_m=port_y_m,
         starboard_x_m=-s_m,

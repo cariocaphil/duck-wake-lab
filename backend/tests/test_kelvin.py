@@ -6,16 +6,16 @@ import numpy as np
 import pytest
 
 from duck_wake_lab.physics import (
-    kelvin_half_angle_deg,
-    kelvin_half_angle_rad,
+    KELVIN_HALF_ANGLE_DEG,
+    KELVIN_HALF_ANGLE_RAD,
     kelvin_wake_boundaries,
 )
 
 
 def test_kelvin_half_angle_approximately_19_47_degrees() -> None:
     """Theoretical Kelvin half-angle is arcsin(1/3) ≈ 19.47°."""
-    assert kelvin_half_angle_rad() == pytest.approx(math.asin(1.0 / 3.0))
-    assert kelvin_half_angle_deg() == pytest.approx(19.471220634, abs=1e-6)
+    assert KELVIN_HALF_ANGLE_RAD == pytest.approx(math.asin(1.0 / 3.0))
+    assert KELVIN_HALF_ANGLE_DEG == pytest.approx(19.471220634, abs=1e-6)
 
 
 def test_wake_boundary_symmetry() -> None:
@@ -49,7 +49,7 @@ def test_geometry_endpoints() -> None:
     """First sample is the origin; final |y| equals L * tan(θ)."""
     wake_length_m = 6.0
     wake = kelvin_wake_boundaries(wake_length_m=wake_length_m, n_points=25)
-    tan_theta = math.tan(kelvin_half_angle_rad())
+    tan_theta = math.tan(KELVIN_HALF_ANGLE_RAD)
 
     assert wake.port_x_m[0] == pytest.approx(0.0)
     assert wake.port_y_m[0] == pytest.approx(0.0)
