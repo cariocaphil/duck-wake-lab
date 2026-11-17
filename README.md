@@ -27,6 +27,9 @@ duck-wake-lab/
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── DuckControls.tsx
+│   │   │   ├── PhysicsLevelField.tsx
+│   │   │   ├── RangeField.tsx
+│   │   │   ├── SpeciesSelect.tsx
 │   │   │   └── WakeCanvas.tsx
 │   │   ├── App.tsx
 │   │   ├── App.test.tsx
