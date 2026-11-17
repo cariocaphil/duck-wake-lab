@@ -28,7 +28,9 @@ duck-wake-lab/
 │   │   ├── canvas/
 │   │   │   └── drawPlaceholder.ts
 │   │   ├── components/
+│   │   │   ├── AppHeader.tsx
 │   │   │   ├── DuckControls.tsx
+│   │   │   ├── ParameterSummary.tsx
 │   │   │   ├── PhysicsLevelField.tsx
 │   │   │   ├── RangeField.tsx
 │   │   │   ├── SpeciesSelect.tsx

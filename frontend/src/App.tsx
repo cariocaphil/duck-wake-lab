@@ -1,11 +1,9 @@
 import { useState } from "react";
+import { AppHeader } from "./components/AppHeader";
 import { DuckControls } from "./components/DuckControls";
+import { ParameterSummary } from "./components/ParameterSummary";
 import { WakeCanvas } from "./components/WakeCanvas";
-import {
-  DEFAULT_PARAMETERS,
-  PHYSICS_LEVEL_LABELS,
-  type DuckParameters,
-} from "./types";
+import { DEFAULT_PARAMETERS, type DuckParameters } from "./types";
 import "./App.css";
 
 function App() {
@@ -14,43 +12,14 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>Duck Wake Lab</h1>
-        <p className="subtitle">
-          Explore the physics behind a swimming duck&apos;s wake.
-        </p>
-      </header>
+      <AppHeader />
 
       <main className="app-main">
         <DuckControls parameters={parameters} onChange={setParameters} />
         <WakeCanvas parameters={parameters} />
       </main>
 
-      <aside className="parameter-summary" aria-label="Selected parameters">
-        <h2>Selected parameters</h2>
-        <dl>
-          <div>
-            <dt>Species</dt>
-            <dd data-testid="param-species">{parameters.species}</dd>
-          </div>
-          <div>
-            <dt>Body length</dt>
-            <dd data-testid="param-body-length">
-              {parameters.bodyLength.toFixed(2)} m
-            </dd>
-          </div>
-          <div>
-            <dt>Swimming speed</dt>
-            <dd data-testid="param-speed">{parameters.speed.toFixed(2)} m/s</dd>
-          </div>
-          <div>
-            <dt>Physics level</dt>
-            <dd data-testid="param-physics">
-              {PHYSICS_LEVEL_LABELS[parameters.physicsLevel]}
-            </dd>
-          </div>
-        </dl>
-      </aside>
+      <ParameterSummary parameters={parameters} />
     </div>
   );
 }
