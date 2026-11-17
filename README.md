@@ -25,12 +25,16 @@ No database, authentication, UI component framework, or global state library.
 duck-wake-lab/
 ├── frontend/
 │   ├── src/
+│   │   ├── canvas/
+│   │   │   └── drawPlaceholder.ts
 │   │   ├── components/
 │   │   │   ├── DuckControls.tsx
 │   │   │   ├── PhysicsLevelField.tsx
 │   │   │   ├── RangeField.tsx
 │   │   │   ├── SpeciesSelect.tsx
 │   │   │   └── WakeCanvas.tsx
+│   │   ├── hooks/
+│   │   │   └── useResponsiveCanvas.ts
 │   │   ├── App.tsx
 │   │   ├── App.test.tsx
 │   │   └── main.tsx
