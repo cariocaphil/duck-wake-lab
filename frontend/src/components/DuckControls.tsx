@@ -1,4 +1,4 @@
-import type { DuckParameters } from "../types";
+import { PARAMETER_RANGES, type DuckParameters } from "../types";
 import { PhysicsLevelField } from "./PhysicsLevelField";
 import { RangeField } from "./RangeField";
 import { SpeciesSelect } from "./SpeciesSelect";
@@ -27,21 +27,15 @@ export function DuckControls({ parameters, onChange }: DuckControlsProps) {
 
       <RangeField
         label="Body length"
-        unit="m"
         value={parameters.bodyLength}
-        min={0.2}
-        max={1.0}
-        step={0.01}
+        {...PARAMETER_RANGES.bodyLength}
         onChange={(bodyLength) => update("bodyLength", bodyLength)}
       />
 
       <RangeField
         label="Swimming speed"
-        unit="m/s"
         value={parameters.speed}
-        min={0.1}
-        max={2.0}
-        step={0.01}
+        {...PARAMETER_RANGES.speed}
         onChange={(speed) => update("speed", speed)}
       />
 

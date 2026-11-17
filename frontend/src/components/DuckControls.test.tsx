@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_PARAMETERS, type DuckParameters } from "../types";
+import {
+  DEFAULT_PARAMETERS,
+  PARAMETER_RANGES,
+  type DuckParameters,
+} from "../types";
 import { DuckControls } from "./DuckControls";
 
 function setup(parameters: DuckParameters = DEFAULT_PARAMETERS) {
@@ -22,6 +26,29 @@ describe("DuckControls", () => {
     expect(
       screen.getByRole("group", { name: "Physics level" }),
     ).toBeInTheDocument();
+  });
+
+  it("applies PARAMETER_RANGES to the body length and speed sliders", () => {
+    setup();
+
+    const bodyLength = screen.getByLabelText("Body length");
+    expect(bodyLength).toHaveAttribute(
+      "min",
+      String(PARAMETER_RANGES.bodyLength.min),
+    );
+    expect(bodyLength).toHaveAttribute(
+      "max",
+      String(PARAMETER_RANGES.bodyLength.max),
+    );
+    expect(bodyLength).toHaveAttribute(
+      "step",
+      String(PARAMETER_RANGES.bodyLength.step),
+    );
+
+    const speed = screen.getByLabelText("Swimming speed");
+    expect(speed).toHaveAttribute("min", String(PARAMETER_RANGES.speed.min));
+    expect(speed).toHaveAttribute("max", String(PARAMETER_RANGES.speed.max));
+    expect(speed).toHaveAttribute("step", String(PARAMETER_RANGES.speed.step));
   });
 
   it("reflects the given parameters in the fields", () => {

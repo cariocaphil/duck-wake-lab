@@ -20,6 +20,18 @@ export interface DuckParameters {
   physicsLevel: PhysicsLevel;
 }
 
+export interface ParameterRange {
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+}
+
+export const PARAMETER_RANGES = {
+  bodyLength: { min: 0.2, max: 1.0, step: 0.01, unit: "m" },
+  speed: { min: 0.1, max: 2.0, step: 0.01, unit: "m/s" },
+} as const satisfies Record<"bodyLength" | "speed", ParameterRange>;
+
 export const DEFAULT_PARAMETERS: DuckParameters = {
   species: "Mallard",
   bodyLength: 0.5,
