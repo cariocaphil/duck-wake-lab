@@ -23,6 +23,20 @@ export function WakeVisualization({
           ? "No wake data yet."
           : null;
 
+  const statusClassName = `wake-status ${isError ? "wake-status--error" : "wake-status--info"}`;
+  const statusRole = isError ? "alert" : "status";
+
+  const statusMessage =
+    status !== null ? (
+      <p
+        className={statusClassName}
+        role={statusRole}
+        data-testid="wake-status"
+      >
+        {status}
+      </p>
+    ) : null;
+
   return (
     <section className="visualization" aria-label="Wake visualization">
       <h2>Wake</h2>
@@ -80,20 +94,12 @@ export function WakeVisualization({
           </svg>
         ) : (
           <div className="svg-placeholder" data-testid="wake-placeholder">
-            {status ?? "Waiting for wake geometry…"}
+            {statusMessage ?? "Waiting for wake geometry…"}
           </div>
         )}
       </div>
 
-      {status !== null && (
-        <p
-          className={`wake-status ${isError ? "wake-status--error" : "wake-status--info"}`}
-          role={isError ? "alert" : "status"}
-          data-testid="wake-status"
-        >
-          {status}
-        </p>
-      )}
+      {wake !== null && statusMessage}
     </section>
   );
 }

@@ -26,6 +26,7 @@ describe("WakeVisualization", () => {
     expect(status).toHaveTextContent("Loading wake geometry…");
     expect(status).toHaveClass("wake-status--info");
     expect(status).toHaveAttribute("role", "status");
+    expect(screen.getAllByText("Loading wake geometry…")).toHaveLength(1);
   });
 
   it("shows an API error message", () => {
@@ -40,5 +41,6 @@ describe("WakeVisualization", () => {
     expect(status).toHaveTextContent("Wake request failed (500)");
     expect(status).toHaveClass("wake-status--error");
     expect(status).toHaveAttribute("role", "alert");
+    expect(screen.getAllByText("Wake request failed (500)")).toHaveLength(1);
   });
 });
