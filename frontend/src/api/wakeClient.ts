@@ -1,3 +1,4 @@
+import { parseWakeResponse, WakeParseError } from "./parseWakeResponse";
 import type { WakeRequest, WakeResponse } from "./types";
 
 export class WakeApiError extends Error {
@@ -42,5 +43,11 @@ export async function fetchWake(
     throw new WakeApiError(detail, response.status);
   }
 
-  return (await response.json()) as WakeResponse;
+  try {
+    return parseWakeResponse(await response.json());
+  } catch (err) {
+    const message =
+      err instanceof WakeParseError ? err.message : "Invalid wake response";
+    throw new WakeApiError(message, response.status);
+  }
 }

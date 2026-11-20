@@ -42,4 +42,25 @@ describe("fetchWake", () => {
       fetchWake({ duck_length_m: 0.5, speed_m_s: 1.2 }),
     ).rejects.toBeInstanceOf(WakeApiError);
   });
+
+  it("throws WakeApiError when the OK body fails contract checks", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () =>
+          makeWakeResponse({
+            starboard_y_m: [0, -0.88],
+          }),
+      }),
+    );
+
+    await expect(
+      fetchWake({ duck_length_m: 0.5, speed_m_s: 1.2 }),
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof WakeApiError && /same length/.test(err.message),
+    );
+  });
 });
