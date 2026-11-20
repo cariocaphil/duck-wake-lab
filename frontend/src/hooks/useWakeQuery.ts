@@ -75,6 +75,7 @@ export function useWakeQuery(values: WakeControlValues): WakeQueryState {
           if (!sameRequest(request, latestRequestRef.current)) {
             return;
           }
+          setWake(null);
           setStatus("error");
           setError(toErrorMessage(err));
         }

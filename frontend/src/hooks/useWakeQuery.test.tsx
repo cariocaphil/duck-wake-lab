@@ -111,4 +111,38 @@ describe("useWakeQuery", () => {
       expect(result.current.error).toMatch(/500/);
     });
   });
+
+  it("clears wake when a later refetch fails", async () => {
+    const wake = makeWakeResponse();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => wake,
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ detail: "boom" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ values }) => useWakeQuery(values),
+      { initialProps: { values: { duckLengthM: 0.5, speedMS: 1.2 } } },
+    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+      expect(result.current.wake).toEqual(wake);
+    });
+
+    rerender({ values: { duckLengthM: 0.8, speedMS: 1.2 } });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+      expect(result.current.wake).toBeNull();
+      expect(result.current.error).toMatch(/500/);
+    });
+  });
 });
