@@ -25,6 +25,8 @@ No database, authentication, UI component framework, or global state library.
 
 ```text
 duck-wake-lab/
+├── shared/
+│   └── wake-parameter-ranges.json   # Length/speed bounds (FE + BE)
 ├── frontend/
 │   ├── src/
 │   │   ├── api/                 # Typed POST /api/wake client
@@ -45,6 +47,12 @@ duck-wake-lab/
 └── .gitignore
 ```
 
+### Shared parameter ranges
+
+Duck length and swimming speed **min/max/step/unit** live in [`shared/wake-parameter-ranges.json`](shared/wake-parameter-ranges.json). The FastAPI `WakeRequest` model and React sliders both load that file (monorepo layout: `shared/` next to `frontend/` and `backend/`). Edit the JSON when changing limits—do not duplicate literals in TypeScript or Pydantic.
+
+OpenAPI-based codegen for the frontend is a possible later improvement; not required for this lab.
+
 ## How the interactive slice works
 
 ```text
@@ -53,7 +61,7 @@ WakeControls  →  WakePage (debounce + abort)  →  POST /api/wake
 WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry
 ```
 
-1. Sliders update length (0.2–1.0 m) and speed (0.1–3.0 m/s).
+1. Sliders update length and speed (ranges from `shared/wake-parameter-ranges.json`).
 2. After a short debounce, the frontend posts to FastAPI; in-flight requests are aborted when inputs change again.
 3. The backend builds `DuckParameters`, computes Froude number, and samples Kelvin envelope arms with `wake_length_m = duck_length_m × 10`.
 4. The SVG renders backend coordinates (no hardcoded V). Froude number and Kelvin half-angle are shown next to the plot.
@@ -129,8 +137,8 @@ Request (validated with `allow_inf_nan=False`):
 
 | Field | Range |
 | --- | --- |
-| `duck_length_m` | 0.2–1.0 m |
-| `speed_m_s` | 0.1–3.0 m/s |
+| `duck_length_m` | from `shared/wake-parameter-ranges.json` |
+| `speed_m_s` | from `shared/wake-parameter-ranges.json` |
 
 Response (shape):
 
@@ -211,6 +219,7 @@ npm run typecheck
 
 ## Features planned for future PRs
 
+- OpenAPI codegen for frontend API types / bounds (optional alternative to shared JSON)
 - Advanced physics level (speed-dependent patterns and visibility)
 - Animation and interactive exploration improvements
 - Educational explanations from a speaking duck

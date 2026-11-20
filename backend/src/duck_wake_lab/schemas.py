@@ -7,12 +7,29 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from duck_wake_lab.parameter_ranges import load_parameter_ranges
+
+_RANGES = load_parameter_ranges()
+_LENGTH = _RANGES["duck_length_m"]
+_SPEED = _RANGES["speed_m_s"]
+
 
 class WakeRequest(BaseModel):
-    """Parameters for computing Kelvin wake envelope geometry."""
+    """Parameters for computing Kelvin wake envelope geometry.
 
-    duck_length_m: float = Field(ge=0.2, le=1.0, allow_inf_nan=False)
-    speed_m_s: float = Field(ge=0.1, le=3.0, allow_inf_nan=False)
+    Bounds come from ``shared/wake-parameter-ranges.json`` (monorepo).
+    """
+
+    duck_length_m: float = Field(
+        ge=_LENGTH["min"],
+        le=_LENGTH["max"],
+        allow_inf_nan=False,
+    )
+    speed_m_s: float = Field(
+        ge=_SPEED["min"],
+        le=_SPEED["max"],
+        allow_inf_nan=False,
+    )
 
 
 class WakeResponse(BaseModel):

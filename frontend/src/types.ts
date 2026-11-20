@@ -1,3 +1,5 @@
+import sharedRanges from "@shared/wake-parameter-ranges.json";
+
 export interface ParameterRange {
   min: number;
   max: number;
@@ -11,8 +13,18 @@ export interface WakeControlValues {
 }
 
 export const PARAMETER_RANGES = {
-  duckLengthM: { min: 0.2, max: 1.0, step: 0.01, unit: "m" },
-  speedMS: { min: 0.1, max: 3.0, step: 0.01, unit: "m/s" },
+  duckLengthM: {
+    min: sharedRanges.duck_length_m.min,
+    max: sharedRanges.duck_length_m.max,
+    step: sharedRanges.duck_length_m.step,
+    unit: sharedRanges.duck_length_m.unit,
+  },
+  speedMS: {
+    min: sharedRanges.speed_m_s.min,
+    max: sharedRanges.speed_m_s.max,
+    step: sharedRanges.speed_m_s.step,
+    unit: sharedRanges.speed_m_s.unit,
+  },
 } as const satisfies Record<"duckLengthM" | "speedMS", ParameterRange>;
 
 export const DEFAULT_CONTROLS: WakeControlValues = {
