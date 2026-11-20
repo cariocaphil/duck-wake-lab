@@ -16,6 +16,7 @@ WAKE_N_POINTS = 51
 
 def compute_wake(request: WakeRequest) -> WakeResponse:
     """Compute Froude number and Kelvin wake boundaries for a request."""
+    # API/UI: duck_length_m → physics: body_length_m (sole mapping bridge).
     params = DuckParameters(
         body_length_m=request.duck_length_m,
         speed_m_s=request.speed_m_s,

@@ -18,12 +18,18 @@ class WakeRequest(BaseModel):
     """Parameters for computing Kelvin wake envelope geometry.
 
     Bounds come from ``shared/wake-parameter-ranges.json`` (monorepo).
+    Physics uses ``body_length_m``; ``wake_service`` maps
+    ``duck_length_m`` to that field.
     """
 
     duck_length_m: float = Field(
         ge=_LENGTH["min"],
         le=_LENGTH["max"],
         allow_inf_nan=False,
+        description=(
+            "Duck body length in meters (API/UI name). "
+            "Mapped to physics DuckParameters.body_length_m in wake_service."
+        ),
     )
     speed_m_s: float = Field(
         ge=_SPEED["min"],
