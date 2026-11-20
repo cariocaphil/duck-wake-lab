@@ -4,6 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from duck_wake_lab.schemas import WakeRequest, WakeResponse
+from duck_wake_lab.wake_service import compute_wake
+
 app = FastAPI(
     title="Duck Wake Lab",
     description="API for the Duck Wake Lab physics simulator",
@@ -32,3 +35,9 @@ class HealthResponse(BaseModel):
 def health() -> HealthResponse:
     """Return service health status."""
     return HealthResponse(status="ok")
+
+
+@app.post("/api/wake", response_model=WakeResponse)
+def wake(request: WakeRequest) -> WakeResponse:
+    """Compute Kelvin wake envelope geometry for duck length and speed."""
+    return compute_wake(request)

@@ -52,42 +52,11 @@
   color: #334155;
 }
 
-.control-field select,
 .control-field input[type="range"] {
   width: 100%;
 }
 
-.control-field select {
-  padding: 0.45rem 0.55rem;
-  border: 1px solid #c5d4dc;
-  border-radius: 6px;
-  background: #f8fbfc;
-  font: inherit;
-}
-
-.physics-level {
-  border: none;
-  padding: 0;
-  margin: 0;
-}
-
-.physics-level legend {
-  margin-bottom: 0.45rem;
-  font-weight: 600;
-}
-
-.physics-level label {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.35rem;
-}
-
-.coming-soon {
-  color: #7a8a94;
-}
-
-.canvas-container {
+.svg-container {
   width: 100%;
   height: min(420px, 55vh);
   min-height: 260px;
@@ -96,10 +65,62 @@
   background: #4a90a4;
 }
 
-.canvas-container canvas {
+.svg-container svg {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.svg-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 1rem;
+  color: #e8f4f8;
+  text-align: center;
+}
+
+.wake-arm {
+  stroke-width: 0.06;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wake-arm-port {
+  stroke: #f4f7fa;
+}
+
+.wake-arm-starboard {
+  stroke: #d6ecf3;
+}
+
+.wake-duck {
+  fill: #f5c542;
+  stroke: #1a3a4a;
+  stroke-width: 0.02;
+}
+
+.swim-direction {
+  stroke: #1a3a4a;
+  stroke-width: 0.04;
+}
+
+.swim-arrow-head {
+  fill: #1a3a4a;
+}
+
+.wake-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.wake-status--info {
+  color: #4a6670;
+}
+
+.wake-status--error {
+  color: #7a3b3b;
 }
 
 .parameter-summary dl {
@@ -138,7 +159,7 @@
     grid-template-columns: 1fr;
   }
 
-  .canvas-container {
+  .svg-container {
     height: 280px;
   }
 }

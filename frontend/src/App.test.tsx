@@ -1,20 +1,28 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import {
-  createMockCanvasContext,
-  mockCanvasGetContext,
-} from "./test/mockCanvasContext";
+import { makeWakeResponse } from "./test/wakeFixtures";
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
+function mockWakeFetch(wake = makeWakeResponse()) {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => wake,
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
 describe("App", () => {
   describe("layout", () => {
-    it("renders the header, controls, visualization and summary", () => {
+    it("renders the header, controls, visualization and summary", async () => {
+      mockWakeFetch();
       render(<App />);
+
       expect(
         screen.getByRole("heading", { name: "Duck Wake Lab" }),
       ).toBeInTheDocument();
@@ -27,86 +35,100 @@ describe("App", () => {
       expect(
         screen.getByRole("complementary", { name: "Selected parameters" }),
       ).toBeInTheDocument();
-    });
 
-    it("renders the canvas placeholder", () => {
-      render(<App />);
-      expect(
-        screen.getByRole("img", { name: "Wake visualization placeholder" }),
-      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-svg")).toBeInTheDocument();
+      });
     });
   });
 
   describe("defaults", () => {
-    it("starts with the default duck parameters", () => {
+    it("starts with the default duck length and speed", async () => {
+      mockWakeFetch();
       render(<App />);
-      expect(screen.getByLabelText("Duck species")).toHaveValue("Mallard");
-      expect(screen.getByTestId("param-species")).toHaveTextContent("Mallard");
+
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.5");
+      expect(screen.getByLabelText("Swimming speed")).toHaveValue("1.2");
       expect(screen.getByTestId("param-body-length")).toHaveTextContent(
         "0.50 m",
       );
-      expect(screen.getByTestId("param-speed")).toHaveTextContent("0.70 m/s");
-      expect(screen.getByTestId("param-physics")).toHaveTextContent("Kelvin");
-    });
+      expect(screen.getByTestId("param-speed")).toHaveTextContent("1.20 m/s");
 
-    it("selects the Kelvin level and keeps Advanced disabled", () => {
-      render(<App />);
-      expect(screen.getByRole("radio", { name: "Kelvin" })).toBeChecked();
-      expect(
-        screen.getByRole("radio", { name: "Advanced (coming soon)" }),
-      ).toBeDisabled();
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
     });
   });
 
-  describe("shared parameter state", () => {
-    it("updates the summary when the species changes", async () => {
-      const user = userEvent.setup();
+  describe("interaction", () => {
+    it("updates displayed values and requests new wake geometry", async () => {
+      const fetchMock = mockWakeFetch();
       render(<App />);
 
-      await user.selectOptions(screen.getByLabelText("Duck species"), "Teal");
-
-      expect(screen.getByTestId("param-species")).toHaveTextContent("Teal");
-    });
-
-    it("updates the summary when the sliders move", () => {
-      render(<App />);
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalled();
+      });
 
       fireEvent.change(screen.getByLabelText("Swimming speed"), {
-        target: { value: "1.25" },
+        target: { value: "2.0" },
       });
-      fireEvent.change(screen.getByLabelText("Body length"), {
-        target: { value: "0.80" },
+      fireEvent.change(screen.getByLabelText("Duck length"), {
+        target: { value: "0.8" },
       });
 
-      expect(screen.getByTestId("param-speed")).toHaveTextContent("1.25 m/s");
+      expect(screen.getByTestId("param-speed")).toHaveTextContent("2.00 m/s");
       expect(screen.getByTestId("param-body-length")).toHaveTextContent(
         "0.80 m",
       );
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/wake",
+          expect.objectContaining({
+            body: JSON.stringify({ duck_length_m: 0.8, speed_m_s: 2.0 }),
+          }),
+        );
+      });
     });
 
-    it("keeps the slider labels in sync with the values", () => {
+    it("renders returned coordinates as SVG polylines", async () => {
+      mockWakeFetch(
+        makeWakeResponse({
+          port_x_m: [0, -1],
+          port_y_m: [0, 0.5],
+          starboard_x_m: [0, -1],
+          starboard_y_m: [0, -0.5],
+        }),
+      );
       render(<App />);
 
-      fireEvent.change(screen.getByLabelText("Swimming speed"), {
-        target: { value: "1.25" },
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-port")).toHaveAttribute(
+          "points",
+          "0,0 -1,-0.5",
+        );
       });
-
-      expect(screen.getByText("Swimming speed (1.25 m/s)")).toBeInTheDocument();
+      expect(screen.getByTestId("wake-starboard")).toHaveAttribute(
+        "points",
+        "0,0 -1,0.5",
+      );
     });
 
-    it("repaints the canvas with the newly selected parameters", async () => {
-      const user = userEvent.setup();
-      const context = createMockCanvasContext();
-      mockCanvasGetContext(context);
+    it("shows an error when the API fails", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          json: async () => ({ detail: "server error" }),
+        }),
+      );
+
       render(<App />);
 
-      await user.selectOptions(screen.getByLabelText("Duck species"), "Teal");
-      fireEvent.change(screen.getByLabelText("Swimming speed"), {
-        target: { value: "1.25" },
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-status")).toHaveTextContent(/500/);
       });
-
-      const drawnText = context.fillText.mock.calls.map((call) => call[0]);
-      expect(drawnText).toContain("Teal · 1.25 m/s · Kelvin model");
     });
   });
 });

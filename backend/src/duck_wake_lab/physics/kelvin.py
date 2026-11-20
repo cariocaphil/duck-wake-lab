@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-
 # Deep-water Kelvin envelope half-angle: arcsin(1/3) ≈ 19.47°.
 KELVIN_HALF_ANGLE_RAD = math.asin(1.0 / 3.0)
 KELVIN_HALF_ANGLE_DEG = math.degrees(KELVIN_HALF_ANGLE_RAD)

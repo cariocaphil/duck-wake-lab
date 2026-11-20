@@ -1,41 +1,40 @@
-import { PHYSICS_LEVEL_LABELS, type DuckParameters } from "../types";
-
-interface SummaryItemProps {
-  label: string;
-  testId: string;
-  children: string;
-}
-
-function SummaryItem({ label, testId, children }: SummaryItemProps) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd data-testid={testId}>{children}</dd>
-    </div>
-  );
-}
+import type { WakeResponse } from "../api/types";
+import type { WakeControlValues } from "../types";
 
 interface ParameterSummaryProps {
-  parameters: DuckParameters;
+  values: WakeControlValues;
+  wake: WakeResponse | null;
 }
 
-export function ParameterSummary({ parameters }: ParameterSummaryProps) {
+export function ParameterSummary({ values, wake }: ParameterSummaryProps) {
   return (
     <aside className="parameter-summary" aria-label="Selected parameters">
       <h2>Selected parameters</h2>
       <dl>
-        <SummaryItem label="Species" testId="param-species">
-          {parameters.species}
-        </SummaryItem>
-        <SummaryItem label="Body length" testId="param-body-length">
-          {`${parameters.bodyLength.toFixed(2)} m`}
-        </SummaryItem>
-        <SummaryItem label="Swimming speed" testId="param-speed">
-          {`${parameters.speed.toFixed(2)} m/s`}
-        </SummaryItem>
-        <SummaryItem label="Physics level" testId="param-physics">
-          {PHYSICS_LEVEL_LABELS[parameters.physicsLevel]}
-        </SummaryItem>
+        <div>
+          <dt>Duck length</dt>
+          <dd data-testid="param-body-length">
+            {values.duckLengthM.toFixed(2)} m
+          </dd>
+        </div>
+        <div>
+          <dt>Swimming speed</dt>
+          <dd data-testid="param-speed">{values.speedMS.toFixed(2)} m/s</dd>
+        </div>
+        {wake !== null && (
+          <>
+            <div>
+              <dt>Froude number</dt>
+              <dd data-testid="wake-froude">{wake.froude_number.toFixed(3)}</dd>
+            </div>
+            <div>
+              <dt>Kelvin half-angle</dt>
+              <dd data-testid="wake-half-angle">
+                {wake.half_angle_deg.toFixed(2)}°
+              </dd>
+            </div>
+          </>
+        )}
       </dl>
     </aside>
   );

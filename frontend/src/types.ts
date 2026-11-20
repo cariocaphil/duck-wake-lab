@@ -1,24 +1,4 @@
-export const DUCK_SPECIES = ["Mallard", "Teal", "Muscovy"] as const;
-
-export type DuckSpecies = (typeof DUCK_SPECIES)[number];
-
-export function isDuckSpecies(value: string): value is DuckSpecies {
-  return (DUCK_SPECIES as readonly string[]).includes(value);
-}
-
-export type PhysicsLevel = "kelvin" | "advanced";
-
-export const PHYSICS_LEVEL_LABELS: Record<PhysicsLevel, string> = {
-  kelvin: "Kelvin",
-  advanced: "Advanced",
-};
-
-export interface DuckParameters {
-  species: DuckSpecies;
-  bodyLength: number;
-  speed: number;
-  physicsLevel: PhysicsLevel;
-}
+import sharedRanges from "@shared/wake-parameter-ranges.json";
 
 export interface ParameterRange {
   min: number;
@@ -27,14 +7,30 @@ export interface ParameterRange {
   unit: string;
 }
 
-export const PARAMETER_RANGES = {
-  bodyLength: { min: 0.2, max: 1.0, step: 0.01, unit: "m" },
-  speed: { min: 0.1, max: 2.0, step: 0.01, unit: "m/s" },
-} as const satisfies Record<"bodyLength" | "speed", ParameterRange>;
+export interface WakeControlValues {
+  duckLengthM: number;
+  speedMS: number;
+}
 
-export const DEFAULT_PARAMETERS: DuckParameters = {
-  species: "Mallard",
-  bodyLength: 0.5,
-  speed: 0.7,
-  physicsLevel: "kelvin",
+export const PARAMETER_RANGES = {
+  duckLengthM: {
+    min: sharedRanges.duck_length_m.min,
+    max: sharedRanges.duck_length_m.max,
+    step: sharedRanges.duck_length_m.step,
+    unit: sharedRanges.duck_length_m.unit,
+  },
+  speedMS: {
+    min: sharedRanges.speed_m_s.min,
+    max: sharedRanges.speed_m_s.max,
+    step: sharedRanges.speed_m_s.step,
+    unit: sharedRanges.speed_m_s.unit,
+  },
+} as const satisfies Record<"duckLengthM" | "speedMS", ParameterRange>;
+
+export const DEFAULT_CONTROLS: WakeControlValues = {
+  duckLengthM: 0.5,
+  speedMS: 1.2,
 };
+
+/** Debounce delay before posting wake requests after slider changes. */
+export const WAKE_FETCH_DEBOUNCE_MS = 150;

@@ -1,19 +1,21 @@
 # Duck Wake Lab
 
-Interactive educational physics simulator that explores the V-shaped wake produced by swimming ducks.
+Interactive educational physics simulator for the V-shaped wake produced by a swimming duck.
 
-Users will eventually be able to select duck species, adjust body length and swimming speed, watch an animated wake visualization, and switch between physics models—with a playful speaking duck that explains the science.
+**Today:** adjust duck length and swimming speed in the browser; FastAPI computes Kelvin wake geometry with the NumPy physics engine; React draws the result as an SVG and shows Froude number and Kelvin half-angle.
+
+**Later:** duck species presets, animated swimming, advanced speed-dependent physics, and a speaking duck that explains the science.
 
 ## Planned physics levels
 
 | Level | Name | Description |
 | --- | --- | --- |
-| 1 | **Kelvin Wake** | Idealized model based on classical Kelvin wake theory |
-| 2 | **Advanced Physics** | Speed-dependent wave patterns and wave visibility |
+| 1 | **Kelvin Wake** (current) | Idealized deep-water envelope; fixed half-angle ≈ 19.47° |
+| 2 | **Advanced Physics** (planned) | Speed-dependent wave patterns and wave visibility |
 
 ## Technology stack
 
-**Frontend:** React 19, TypeScript, Vite, HTML Canvas, Vitest, React Testing Library, ESLint
+**Frontend:** React 19, TypeScript, Vite, SVG, Vitest, React Testing Library, ESLint
 
 **Backend:** Python 3.12+, uv, FastAPI, NumPy, Pydantic, pytest, Ruff
 
@@ -23,79 +25,80 @@ No database, authentication, UI component framework, or global state library.
 
 ```text
 duck-wake-lab/
+├── shared/
+│   └── wake-parameter-ranges.json   # Length/speed bounds (FE + BE)
 ├── frontend/
 │   ├── src/
-│   │   ├── canvas/
-│   │   │   └── drawPlaceholder.ts
-│   │   ├── components/
-│   │   │   ├── AppHeader.tsx
-│   │   │   ├── DuckControls.tsx
-│   │   │   ├── ParameterSummary.tsx
-│   │   │   ├── PhysicsLevelField.tsx
-│   │   │   ├── RangeField.tsx
-│   │   │   ├── SpeciesSelect.tsx
-│   │   │   └── WakeCanvas.tsx
-│   │   ├── hooks/
-│   │   │   └── useResponsiveCanvas.ts
+│   │   ├── api/                 # Typed POST /api/wake client
+│   │   ├── components/          # Controls + SVG visualization
+│   │   ├── hooks/useWakeQuery.ts
+│   │   ├── pages/WakePage.tsx   # State and fetch orchestration
 │   │   ├── App.tsx
-│   │   ├── App.test.tsx
 │   │   └── main.tsx
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
+│   └── package.json
 ├── backend/
-│   ├── src/
-│   │   └── duck_wake_lab/
-│   │       ├── __init__.py
-│   │       ├── main.py
-│   │       └── physics/
-│   │           ├── __init__.py
-│   │           ├── parameters.py
-│   │           ├── froude.py
-│   │           └── kelvin.py
-│   ├── tests/
-│   │   ├── test_health.py
-│   │   ├── test_parameters.py
-│   │   ├── test_froude.py
-│   │   └── test_kelvin.py
-│   ├── pyproject.toml
-│   └── uv.lock
+│   ├── src/duck_wake_lab/
+│   │   ├── main.py              # FastAPI app + routes
+│   │   ├── schemas.py           # Wake request/response models
+│   │   ├── wake_service.py      # Physics orchestration
+│   │   └── physics/             # UI-agnostic NumPy domain layer
+│   └── tests/
 ├── README.md
 └── .gitignore
 ```
 
+### Shared parameter ranges
+
+Duck length and swimming speed **min/max/step/unit** live in [`shared/wake-parameter-ranges.json`](shared/wake-parameter-ranges.json). The FastAPI `WakeRequest` model and React sliders both load that file (monorepo layout: `shared/` next to `frontend/` and `backend/`). Edit the JSON when changing limits—do not duplicate literals in TypeScript or Pydantic.
+
+OpenAPI-based codegen for the frontend is a possible later improvement; not required for this lab.
+
+## How the interactive slice works
+
+```text
+WakeControls  →  WakePage (debounce + abort)  →  POST /api/wake
+                                                      ↓
+WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry
+```
+
+1. Sliders update length and speed (ranges from `shared/wake-parameter-ranges.json`).
+2. After a short debounce, the frontend posts to FastAPI; in-flight requests are aborted when inputs change again.
+3. The backend builds `DuckParameters`, computes Froude number, and samples Kelvin envelope arms with `wake_length_m = duck_length_m × 10`.
+4. The SVG renders backend coordinates (no hardcoded V). Froude number and Kelvin half-angle are shown next to the plot.
+
+### Slider expectations (Kelvin model)
+
+| User change | Expected result |
+| --- | --- |
+| Duck length | Wake sample extent grows or shrinks |
+| Swimming speed | Froude number changes; V geometry does **not** widen |
+| Both | Kelvin half-angle stays ≈ 19.47° |
+
 ## Physics engine
 
-The backend `physics` package is a small, UI-agnostic NumPy domain layer. It has no dependency on FastAPI, React, or any visualization library.
+The `physics` package is a UI-agnostic NumPy domain layer. It has no dependency on FastAPI or React.
 
 ### Froude number
-
-The dimensionless Froude number compares swimming speed to a gravity–length scale:
 
 \[
 Fr = \frac{v}{\sqrt{gL}}
 \]
 
-where \(v\) is speed (m/s), \(g = 9.81\) m/s², and \(L\) is body length (m). Larger \(Fr\) means inertia dominates gravity for the duck’s size.
+where \(v\) is speed (m/s), \(g = 9.81\) m/s², and \(L\) is body length (m).
 
 ### Kelvin wake angle
-
-In deep water, classical Kelvin theory predicts a V-shaped wake envelope whose half-angle from the centerline is constant:
 
 \[
 \theta = \arcsin(1/3) \approx 19.47^\circ
 \]
 
-This PR models only that theoretical envelope as two straight rays behind a duck at the origin swimming in \(+x\). The angle does **not** depend on speed or body length in this simplified model—the Froude number is computed separately for later physics levels.
+The duck sits at the origin and swims in \(+x\); wake arms extend in \(-x\) at \(\pm\theta\) from the centerline. In this simplified model the angle does **not** depend on speed or length.
 
 ### Limitations
 
-- No transverse/divergent wave interference pattern (only the envelope arms)
+- Envelope arms only (no transverse/divergent interference pattern)
 - No speed-dependent wake angle or wave visibility
 - Idealized deep-water assumption
-- `KelvinWakeBoundaries` is a frozen dataclass, but its NumPy array fields remain mutable in place
-
-When FastAPI simulation endpoints are added, the API layer should convert NumPy arrays to JSON-compatible lists; the physics domain keeps arrays.
 
 ### Usage example
 
@@ -113,19 +116,55 @@ wake = kelvin_wake_boundaries(wake_length_m=5.0, n_points=51)
 # wake.port_x_m, wake.port_y_m, wake.starboard_x_m, wake.starboard_y_m
 ```
 
-### Running physics tests
+## API
 
-```bash
-cd backend
-uv run pytest
+### `GET /api/health`
+
+```json
+{ "status": "ok" }
 ```
+
+### `POST /api/wake`
+
+Request (validated with `allow_inf_nan=False`):
+
+```json
+{
+  "duck_length_m": 0.5,
+  "speed_m_s": 1.2
+}
+```
+
+| Field | Range |
+| --- | --- |
+| `duck_length_m` | from `shared/wake-parameter-ranges.json` |
+| `speed_m_s` | from `shared/wake-parameter-ranges.json` |
+
+Response (shape):
+
+```json
+{
+  "duck_length_m": 0.5,
+  "speed_m_s": 1.2,
+  "froude_number": 0.541,
+  "half_angle_rad": 0.3398,
+  "half_angle_deg": 19.47,
+  "wake_length_m": 5.0,
+  "port_x_m": [0.0, "..."],
+  "port_y_m": [0.0, "..."],
+  "starboard_x_m": [0.0, "..."],
+  "starboard_y_m": [0.0, "..."]
+}
+```
+
+Coordinate arrays come from the NumPy Kelvin engine (`list[float]` for JSON).
 
 ## Local installation
 
 ### Prerequisites
 
 - Node.js 20+
-- [uv](https://docs.astral.sh/uv/) (manages Python and backend dependencies)
+- [uv](https://docs.astral.sh/uv/)
 
 ### Backend
 
@@ -143,19 +182,19 @@ npm install
 
 ## Running locally
 
-Start the backend (from `backend/`):
+Backend (from `backend/`):
 
 ```bash
 uv run uvicorn duck_wake_lab.main:app --reload --port 8000
 ```
 
-Start the frontend (from `frontend/`):
+Frontend (from `frontend/`):
 
 ```bash
 npm run dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api` requests to FastAPI on port 8000.
+Open http://localhost:5173. Vite proxies `/api` to FastAPI on port 8000.
 
 Health check: http://localhost:8000/api/health → `{"status":"ok"}`
 
@@ -178,23 +217,9 @@ npm run lint
 npm run typecheck
 ```
 
-## Scope of PR #1
-
-This pull request establishes the fullstack foundation only:
-
-- React + Vite frontend shell with duck controls and a canvas placeholder
-- FastAPI backend with a health endpoint and CORS for local development
-- Empty `physics` package reserved for future models
-- Frontend and backend test scaffolding
-- Developer tooling (TypeScript strict mode, ESLint, Vitest, pytest, Ruff)
-- Project documentation
-
-**Not included:** real wake geometry, animation, simulation API endpoints, advanced physics, audio/chatbot features, CI/CD, or deployment.
-
 ## Features planned for future PRs
 
-- Canvas rendering of Kelvin wake envelope coordinates
-- Simulation API endpoint driven by duck parameters (JSON conversion of wake arrays)
+- OpenAPI codegen for frontend API types / bounds (optional alternative to shared JSON)
 - Advanced physics level (speed-dependent patterns and visibility)
 - Animation and interactive exploration improvements
 - Educational explanations from a speaking duck
