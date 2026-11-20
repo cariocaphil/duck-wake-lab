@@ -20,17 +20,6 @@ describe("WakeVisualization", () => {
     expect(screen.getByTestId("swim-direction")).toBeInTheDocument();
   });
 
-  it("displays Froude number and Kelvin half-angle from the response", () => {
-    const wake = makeWakeResponse({
-      froude_number: 0.54123,
-      half_angle_deg: 19.47122,
-    });
-    render(<WakeVisualization wake={wake} loading={false} error={null} />);
-
-    expect(screen.getByTestId("wake-froude")).toHaveTextContent("0.541");
-    expect(screen.getByTestId("wake-half-angle")).toHaveTextContent("19.47°");
-  });
-
   it("shows a loading message before the first response", () => {
     render(<WakeVisualization wake={null} loading={true} error={null} />);
     expect(screen.getByTestId("wake-status")).toHaveTextContent(

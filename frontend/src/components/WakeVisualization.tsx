@@ -85,21 +85,6 @@ export function WakeVisualization({
         )}
       </div>
 
-      {wake !== null && (
-        <dl className="wake-metadata" aria-label="Physics metadata">
-          <div>
-            <dt>Froude number</dt>
-            <dd data-testid="wake-froude">{wake.froude_number.toFixed(3)}</dd>
-          </div>
-          <div>
-            <dt>Kelvin half-angle</dt>
-            <dd data-testid="wake-half-angle">
-              {wake.half_angle_deg.toFixed(2)}°
-            </dd>
-          </div>
-        </dl>
-      )}
-
       {status !== null && (
         <p className="wake-status" role="status" data-testid="wake-status">
           {status}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppHeader } from "../components/AppHeader";
+import { ParameterSummary } from "../components/ParameterSummary";
 import { WakeControls } from "../components/WakeControls";
 import { WakeVisualization } from "../components/WakeVisualization";
 import { useWakeQuery } from "../hooks/useWakeQuery";
@@ -18,21 +19,7 @@ export function WakePage() {
         <WakeVisualization wake={wake} loading={loading} error={error} />
       </main>
 
-      <aside className="parameter-summary" aria-label="Selected parameters">
-        <h2>Selected parameters</h2>
-        <dl>
-          <div>
-            <dt>Duck length</dt>
-            <dd data-testid="param-body-length">
-              {values.duckLengthM.toFixed(2)} m
-            </dd>
-          </div>
-          <div>
-            <dt>Swimming speed</dt>
-            <dd data-testid="param-speed">{values.speedMS.toFixed(2)} m/s</dd>
-          </div>
-        </dl>
-      </aside>
+      <ParameterSummary values={values} wake={wake} />
     </div>
   );
 }
