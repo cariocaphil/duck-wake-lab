@@ -20,10 +20,10 @@ export const PARAMETER_RANGES = {
     unit: sharedRanges.duck_length_m.unit,
   },
   speedMS: {
-    min: sharedRanges.speed_m_s.min,
-    max: sharedRanges.speed_m_s.max,
-    step: sharedRanges.speed_m_s.step,
-    unit: sharedRanges.speed_m_s.unit,
+    min: sharedRanges.swimming_speed_m_s.min,
+    max: sharedRanges.swimming_speed_m_s.max,
+    step: sharedRanges.swimming_speed_m_s.step,
+    unit: sharedRanges.swimming_speed_m_s.unit,
   },
 } as const satisfies Record<"duckLengthM" | "speedMS", ParameterRange>;
 

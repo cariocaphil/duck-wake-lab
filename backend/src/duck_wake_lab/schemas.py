@@ -5,89 +5,84 @@ from __future__ import annotations
 import math
 from typing import Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from duck_wake_lab.parameter_ranges import load_parameter_ranges
 
-_RANGES = load_parameter_ranges()
-_LENGTH = _RANGES["duck_length_m"]
-_SPEED = _RANGES["speed_m_s"]
+class Point2D(BaseModel):
+    """A 2D point in meters (physics coordinates)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    x_m: float = Field(allow_inf_nan=False)
+    y_m: float = Field(allow_inf_nan=False)
 
 
 class WakeRequest(BaseModel):
     """Parameters for computing Kelvin wake envelope geometry.
 
-    Bounds come from ``shared/wake-parameter-ranges.json`` (monorepo).
-    Physics uses ``body_length_m``; ``wake_service`` maps
-    ``duck_length_m`` to that field.
+    API contract bounds are ``duck_length_m > 0`` and
+    ``swimming_speed_m_s >= 0``. Slider UX ranges live in
+    ``shared/wake-parameter-ranges.json`` and are not enforced here.
+    Physics uses ``body_length_m`` / ``speed_m_s``; ``wake_service`` maps
+    these API fields.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     duck_length_m: float = Field(
-        ge=_LENGTH["min"],
-        le=_LENGTH["max"],
+        gt=0,
         allow_inf_nan=False,
         description=(
             "Duck body length in meters (API/UI name). "
             "Mapped to physics DuckParameters.body_length_m in wake_service."
         ),
     )
-    speed_m_s: float = Field(
-        ge=_SPEED["min"],
-        le=_SPEED["max"],
+    swimming_speed_m_s: float = Field(
+        ge=0,
         allow_inf_nan=False,
+        description="Swimming speed in meters per second.",
     )
 
 
 class WakeResponse(BaseModel):
     """Wake geometry and physics metadata for visualization.
 
-    Contract (not physics): equal-length finite coordinate arrays that
+    Contract (not physics): equal-length finite Point2D arrays that
     start at the origin. Envelope angle relationships belong in physics tests.
     """
 
-    duck_length_m: float = Field(allow_inf_nan=False)
-    speed_m_s: float = Field(allow_inf_nan=False)
+    model_config = ConfigDict(extra="forbid")
+
     froude_number: float = Field(allow_inf_nan=False)
-    half_angle_rad: float = Field(allow_inf_nan=False)
-    half_angle_deg: float = Field(allow_inf_nan=False)
+    kelvin_angle_deg: float = Field(allow_inf_nan=False)
     wake_length_m: float = Field(allow_inf_nan=False)
-    port_x_m: list[float]
-    port_y_m: list[float]
-    starboard_x_m: list[float]
-    starboard_y_m: list[float]
+    port_boundary: list[Point2D]
+    starboard_boundary: list[Point2D]
 
     @model_validator(mode="after")
     def validate_coordinate_contract(self) -> Self:
-        """Ensure port/starboard arrays share length, are finite, and start at 0."""
-        arrays = (
-            self.port_x_m,
-            self.port_y_m,
-            self.starboard_x_m,
-            self.starboard_y_m,
-        )
-        lengths = {len(arr) for arr in arrays}
-        if len(lengths) != 1:
+        """Ensure port/starboard arms share length, are finite, and start at 0."""
+        port = self.port_boundary
+        starboard = self.starboard_boundary
+        if len(port) != len(starboard):
             raise ValueError(
                 "port and starboard coordinate arrays must have the same length"
             )
-        n = lengths.pop()
-        if n < 2:
+        if len(port) < 2:
             raise ValueError("coordinate arrays must contain at least 2 points")
 
-        for name, arr in (
-            ("port_x_m", self.port_x_m),
-            ("port_y_m", self.port_y_m),
-            ("starboard_x_m", self.starboard_x_m),
-            ("starboard_y_m", self.starboard_y_m),
-        ):
-            if any(not math.isfinite(value) for value in arr):
+        for name, arm in (("port_boundary", port), ("starboard_boundary", starboard)):
+            if any(
+                not math.isfinite(point.x_m) or not math.isfinite(point.y_m)
+                for point in arm
+            ):
                 raise ValueError(f"{name} must contain only finite numbers")
 
         if (
-            self.port_x_m[0] != 0.0
-            or self.port_y_m[0] != 0.0
-            or self.starboard_x_m[0] != 0.0
-            or self.starboard_y_m[0] != 0.0
+            port[0].x_m != 0.0
+            or port[0].y_m != 0.0
+            or starboard[0].x_m != 0.0
+            or starboard[0].y_m != 0.0
         ):
             raise ValueError("wake arms must start at the origin (0, 0)")
 

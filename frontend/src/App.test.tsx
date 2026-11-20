@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import { makeWakeResponse } from "./test/wakeFixtures";
+import {
+  expectPostedWake,
+  makeWakeResponse,
+  mockJsonResponse,
+  point,
+} from "./test/wakeFixtures";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -9,10 +14,7 @@ afterEach(() => {
 });
 
 function mockWakeFetch(wake = makeWakeResponse()) {
-  const fetchMock = vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => wake,
-  });
+  const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse(wake));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -82,11 +84,10 @@ describe("App", () => {
       );
 
       await waitFor(() => {
-        expect(fetchMock).toHaveBeenCalledWith(
-          "/api/wake",
-          expect.objectContaining({
-            body: JSON.stringify({ duck_length_m: 0.8, speed_m_s: 2.0 }),
-          }),
+        expectPostedWake(
+          fetchMock,
+          { duck_length_m: 0.8, swimming_speed_m_s: 2.0 },
+          -1,
         );
       });
     });
@@ -94,10 +95,8 @@ describe("App", () => {
     it("renders returned coordinates as SVG polylines", async () => {
       mockWakeFetch(
         makeWakeResponse({
-          port_x_m: [0, -1],
-          port_y_m: [0, 0.5],
-          starboard_x_m: [0, -1],
-          starboard_y_m: [0, -0.5],
+          port_boundary: [point(0, 0), point(-1, 0.5)],
+          starboard_boundary: [point(0, 0), point(-1, -0.5)],
         }),
       );
       render(<App />);
@@ -117,11 +116,11 @@ describe("App", () => {
     it("shows an error when the API fails", async () => {
       vi.stubGlobal(
         "fetch",
-        vi.fn().mockResolvedValue({
-          ok: false,
-          status: 500,
-          json: async () => ({ detail: "server error" }),
-        }),
+        vi
+          .fn()
+          .mockResolvedValue(
+            mockJsonResponse({ detail: "server error" }, 500),
+          ),
       );
 
       render(<App />);

@@ -39,5 +39,5 @@ def health() -> HealthResponse:
 
 @app.post("/api/wake", response_model=WakeResponse)
 def wake(request: WakeRequest) -> WakeResponse:
-    """Compute Kelvin wake envelope geometry for duck length and speed."""
+    """Compute Kelvin wake envelope geometry for duck length and swimming speed."""
     return compute_wake(request)

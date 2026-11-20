@@ -1,4 +1,4 @@
-import type { WakeResponse } from "../api/types";
+import type { WakeResponse } from "../api/wakeClient";
 import { computeViewBox, polylinePoints } from "../svg/wakeSvg";
 
 interface WakeVisualizationProps {
@@ -67,13 +67,13 @@ export function WakeVisualization({
               data-testid="wake-port"
               className="wake-arm wake-arm-port"
               fill="none"
-              points={polylinePoints(wake.port_x_m, wake.port_y_m)}
+              points={polylinePoints(wake.port_boundary)}
             />
             <polyline
               data-testid="wake-starboard"
               className="wake-arm wake-arm-starboard"
               fill="none"
-              points={polylinePoints(wake.starboard_x_m, wake.starboard_y_m)}
+              points={polylinePoints(wake.starboard_boundary)}
             />
             <circle
               data-testid="wake-duck"
