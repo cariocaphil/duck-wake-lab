@@ -13,7 +13,7 @@ Users will eventually be able to select duck species, adjust body length and swi
 
 ## Technology stack
 
-**Frontend:** React 19, TypeScript, Vite, HTML Canvas, Vitest, React Testing Library, ESLint
+**Frontend:** React 19, TypeScript, Vite, SVG visualization, Vitest, React Testing Library, ESLint
 
 **Backend:** Python 3.12+, uv, FastAPI, NumPy, Pydantic, pytest, Ruff
 
@@ -25,18 +25,18 @@ No database, authentication, UI component framework, or global state library.
 duck-wake-lab/
 ├── frontend/
 │   ├── src/
-│   │   ├── canvas/
-│   │   │   └── drawPlaceholder.ts
+│   │   ├── api/
+│   │   │   ├── types.ts
+│   │   │   └── wakeClient.ts
 │   │   ├── components/
 │   │   │   ├── AppHeader.tsx
-│   │   │   ├── DuckControls.tsx
-│   │   │   ├── ParameterSummary.tsx
-│   │   │   ├── PhysicsLevelField.tsx
 │   │   │   ├── RangeField.tsx
-│   │   │   ├── SpeciesSelect.tsx
-│   │   │   └── WakeCanvas.tsx
+│   │   │   ├── WakeControls.tsx
+│   │   │   └── WakeVisualization.tsx
 │   │   ├── hooks/
-│   │   │   └── useResponsiveCanvas.ts
+│   │   │   └── useWakeQuery.ts
+│   │   ├── pages/
+│   │   │   └── WakePage.tsx
 │   │   ├── App.tsx
 │   │   ├── App.test.tsx
 │   │   └── main.tsx
@@ -48,6 +48,8 @@ duck-wake-lab/
 │   │   └── duck_wake_lab/
 │   │       ├── __init__.py
 │   │       ├── main.py
+│   │       ├── schemas.py
+│   │       ├── wake_service.py
 │   │       └── physics/
 │   │           ├── __init__.py
 │   │           ├── parameters.py
@@ -55,6 +57,7 @@ duck-wake-lab/
 │   │           └── kelvin.py
 │   ├── tests/
 │   │   ├── test_health.py
+│   │   ├── test_wake.py
 │   │   ├── test_parameters.py
 │   │   ├── test_froude.py
 │   │   └── test_kelvin.py
@@ -86,7 +89,17 @@ In deep water, classical Kelvin theory predicts a V-shaped wake envelope whose h
 \theta = \arcsin(1/3) \approx 19.47^\circ
 \]
 
-This PR models only that theoretical envelope as two straight rays behind a duck at the origin swimming in \(+x\). The angle does **not** depend on speed or body length in this simplified model—the Froude number is computed separately for later physics levels.
+This model only draws that theoretical envelope as two straight rays behind a duck at the origin swimming in \(+x\). The angle does **not** depend on speed or body length in this simplified model—the Froude number is computed separately and shown in the UI.
+
+### Interactive slider expectations
+
+| User change | Expected result |
+| --- | --- |
+| Duck length | Wake sample extent scales (`wake_length_m = duck_length_m × 10`) |
+| Swimming speed | Froude number changes; V geometry does **not** widen |
+| Both | Kelvin half-angle stays ≈ 19.47° |
+
+The visualization displays Froude number and Kelvin half-angle next to the SVG so that speed-independent geometry is explicit.
 
 ### Limitations
 
@@ -94,8 +107,6 @@ This PR models only that theoretical envelope as two straight rays behind a duck
 - No speed-dependent wake angle or wave visibility
 - Idealized deep-water assumption
 - `KelvinWakeBoundaries` is a frozen dataclass, but its NumPy array fields remain mutable in place
-
-When FastAPI simulation endpoints are added, the API layer should convert NumPy arrays to JSON-compatible lists; the physics domain keeps arrays.
 
 ### Usage example
 
@@ -119,6 +130,29 @@ wake = kelvin_wake_boundaries(wake_length_m=5.0, n_points=51)
 cd backend
 uv run pytest
 ```
+
+## API
+
+### `GET /api/health`
+
+```json
+{ "status": "ok" }
+```
+
+### `POST /api/wake`
+
+Request:
+
+```json
+{
+  "duck_length_m": 0.5,
+  "speed_m_s": 1.2
+}
+```
+
+Validated ranges: length `0.2–1.0` m, speed `0.1–3.0` m/s (`allow_inf_nan=False`).
+
+Response includes echoed inputs, `froude_number`, Kelvin half-angle, `wake_length_m`, and port/starboard coordinate arrays from the NumPy Kelvin engine.
 
 ## Local installation
 
@@ -157,7 +191,7 @@ npm run dev
 
 Open http://localhost:5173. Vite proxies `/api` requests to FastAPI on port 8000.
 
-Health check: http://localhost:8000/api/health → `{"status":"ok"}`
+Adjust duck length and swimming speed; the SVG wake updates from `POST /api/wake`.
 
 ## Tests, linting, and type checking
 
@@ -178,23 +212,8 @@ npm run lint
 npm run typecheck
 ```
 
-## Scope of PR #1
-
-This pull request establishes the fullstack foundation only:
-
-- React + Vite frontend shell with duck controls and a canvas placeholder
-- FastAPI backend with a health endpoint and CORS for local development
-- Empty `physics` package reserved for future models
-- Frontend and backend test scaffolding
-- Developer tooling (TypeScript strict mode, ESLint, Vitest, pytest, Ruff)
-- Project documentation
-
-**Not included:** real wake geometry, animation, simulation API endpoints, advanced physics, audio/chatbot features, CI/CD, or deployment.
-
 ## Features planned for future PRs
 
-- Canvas rendering of Kelvin wake envelope coordinates
-- Simulation API endpoint driven by duck parameters (JSON conversion of wake arrays)
 - Advanced physics level (speed-dependent patterns and visibility)
 - Animation and interactive exploration improvements
 - Educational explanations from a speaking duck
