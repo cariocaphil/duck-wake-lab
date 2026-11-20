@@ -3,20 +3,10 @@ import { fetchWake, WakeApiError } from "../api/wakeClient";
 import type { WakeRequest, WakeResponse } from "../api/types";
 import { WAKE_FETCH_DEBOUNCE_MS, type WakeControlValues } from "../types";
 
-export type WakeQueryStatus = "idle" | "loading" | "success" | "error";
-
 export interface WakeQueryState {
   wake: WakeResponse | null;
-  status: WakeQueryStatus;
   error: string | null;
   loading: boolean;
-}
-
-function toRequest(values: WakeControlValues): WakeRequest {
-  return {
-    duck_length_m: values.duckLengthM,
-    speed_m_s: values.speedMS,
-  };
 }
 
 function sameRequest(a: WakeRequest, b: WakeRequest): boolean {
@@ -32,25 +22,38 @@ function toErrorMessage(err: unknown): string {
 
 /**
  * Debounced wake fetch with abort-on-input-change to avoid stale responses.
+ * Delay is 0 until the first successful settle; after that always WAKE_FETCH_DEBOUNCE_MS.
  */
-export function useWakeQuery(values: WakeControlValues): WakeQueryState {
+export function useWakeQuery({
+  duckLengthM,
+  speedMS,
+}: WakeControlValues): WakeQueryState {
   const [wake, setWake] = useState<WakeResponse | null>(null);
-  const [status, setStatus] = useState<WakeQueryStatus>("idle");
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
-  const latestRequestRef = useRef<WakeRequest>(toRequest(values));
+  const latestRequestRef = useRef<WakeRequest>({
+    duck_length_m: duckLengthM,
+    speed_m_s: speedMS,
+  });
+  const hasSucceededRef = useRef(false);
 
   useEffect(() => {
-    const request = toRequest(values);
+    const request: WakeRequest = {
+      duck_length_m: duckLengthM,
+      speed_m_s: speedMS,
+    };
     latestRequestRef.current = request;
 
     // Abort any in-flight request immediately when inputs change.
     abortRef.current?.abort();
     abortRef.current = null;
 
-    setStatus("loading");
+    setLoading(true);
     setError(null);
+
+    const delay = hasSucceededRef.current ? WAKE_FETCH_DEBOUNCE_MS : 0;
 
     const timer = window.setTimeout(() => {
       const controller = new AbortController();
@@ -65,8 +68,9 @@ export function useWakeQuery(values: WakeControlValues): WakeQueryState {
           if (!sameRequest(request, latestRequestRef.current)) {
             return;
           }
+          hasSucceededRef.current = true;
           setWake(result);
-          setStatus("success");
+          setLoading(false);
           setError(null);
         } catch (err) {
           if (controller.signal.aborted) {
@@ -76,26 +80,22 @@ export function useWakeQuery(values: WakeControlValues): WakeQueryState {
             return;
           }
           setWake(null);
-          setStatus("error");
+          setLoading(false);
           setError(toErrorMessage(err));
         }
       })();
-    }, WAKE_FETCH_DEBOUNCE_MS);
+    }, delay);
 
     return () => {
       window.clearTimeout(timer);
       abortRef.current?.abort();
       abortRef.current = null;
     };
-    // Intentionally depend on primitives only — a new `values` object each
-    // render would retrigger the effect and reset the debounced request.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [values.duckLengthM, values.speedMS]);
+  }, [duckLengthM, speedMS]);
 
   return {
     wake,
-    status,
     error,
-    loading: status === "loading",
+    loading,
   };
 }
