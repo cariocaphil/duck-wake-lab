@@ -1,39 +1,10 @@
 import type { WakeResponse } from "../api/types";
+import { computeViewBox, polylinePoints } from "../svg/wakeSvg";
 
 interface WakeVisualizationProps {
   wake: WakeResponse | null;
   loading: boolean;
   error: string | null;
-}
-
-/** Map physics y (up) to SVG y (down) by negating. */
-function polylinePoints(xs: number[], ys: number[]): string {
-  return xs.map((x, i) => `${x},${-ys[i]}`).join(" ");
-}
-
-function computeViewBox(wake: WakeResponse): string {
-  const xs = [...wake.port_x_m, ...wake.starboard_x_m, 0];
-  // After y-negation, SVG minY is -max(physics y) and maxY is -min(physics y).
-  const physicsYs = [...wake.port_y_m, ...wake.starboard_y_m, 0];
-  const svgYs = physicsYs.map((y) => -y);
-
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...svgYs);
-  const maxY = Math.max(...svgYs);
-
-  const wakeWidth = Math.max(maxX - minX, 1e-6);
-  const wakeHeight = Math.max(maxY - minY, 1e-6);
-  const arrowPad = wakeWidth * 0.12;
-  const padX = wakeWidth * 0.08;
-  const padY = wakeHeight * 0.15;
-
-  const left = minX - padX;
-  const right = maxX + arrowPad + padX;
-  const top = minY - padY;
-  const bottom = maxY + padY;
-
-  return `${left} ${top} ${right - left} ${bottom - top}`;
 }
 
 export function WakeVisualization({
