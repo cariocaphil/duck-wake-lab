@@ -12,16 +12,16 @@ export function WakeVisualization({
   loading,
   error,
 }: WakeVisualizationProps) {
-  const status =
-    error !== null
-      ? error
-      : loading && wake === null
-        ? "Loading wake geometry…"
-        : loading
-          ? "Updating wake geometry…"
-          : wake === null
-            ? "No wake data yet."
-            : null;
+  const isError = error !== null;
+  const status = isError
+    ? error
+    : loading && wake === null
+      ? "Loading wake geometry…"
+      : loading
+        ? "Updating wake geometry…"
+        : wake === null
+          ? "No wake data yet."
+          : null;
 
   return (
     <section className="visualization" aria-label="Wake visualization">
@@ -86,7 +86,11 @@ export function WakeVisualization({
       </div>
 
       {status !== null && (
-        <p className="wake-status" role="status" data-testid="wake-status">
+        <p
+          className={`wake-status ${isError ? "wake-status--error" : "wake-status--info"}`}
+          role={isError ? "alert" : "status"}
+          data-testid="wake-status"
+        >
           {status}
         </p>
       )}

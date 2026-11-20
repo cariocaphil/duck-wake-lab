@@ -112,8 +112,15 @@
 
 .wake-status {
   margin: 0.75rem 0 0;
-  color: #7a3b3b;
   font-size: 0.9rem;
+}
+
+.wake-status--info {
+  color: #4a6670;
+}
+
+.wake-status--error {
+  color: #7a3b3b;
 }
 
 .parameter-summary dl {

@@ -22,9 +22,10 @@ describe("WakeVisualization", () => {
 
   it("shows a loading message before the first response", () => {
     render(<WakeVisualization wake={null} loading={true} error={null} />);
-    expect(screen.getByTestId("wake-status")).toHaveTextContent(
-      "Loading wake geometry…",
-    );
+    const status = screen.getByTestId("wake-status");
+    expect(status).toHaveTextContent("Loading wake geometry…");
+    expect(status).toHaveClass("wake-status--info");
+    expect(status).toHaveAttribute("role", "status");
   });
 
   it("shows an API error message", () => {
@@ -35,8 +36,9 @@ describe("WakeVisualization", () => {
         error="Wake request failed (500)"
       />,
     );
-    expect(screen.getByTestId("wake-status")).toHaveTextContent(
-      "Wake request failed (500)",
-    );
+    const status = screen.getByTestId("wake-status");
+    expect(status).toHaveTextContent("Wake request failed (500)");
+    expect(status).toHaveClass("wake-status--error");
+    expect(status).toHaveAttribute("role", "alert");
   });
 });
