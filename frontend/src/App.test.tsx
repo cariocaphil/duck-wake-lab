@@ -5,8 +5,10 @@ import {
   expectPostedWake,
   makeAdvancedWakeResponse,
   makeWakeResponse,
+  makeWaveFieldResponse,
   mockJsonResponse,
   point,
+  stubRoutedFetch,
 } from "./test/wakeFixtures";
 
 afterEach(() => {
@@ -16,7 +18,7 @@ afterEach(() => {
 
 function mockWakeFetch(wake = makeWakeResponse()) {
   const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse(wake));
-  vi.stubGlobal("fetch", fetchMock);
+  stubRoutedFetch(fetchMock);
   return fetchMock;
 }
 
@@ -34,7 +36,7 @@ function mockModeAwareFetch() {
         ),
       );
     });
-  vi.stubGlobal("fetch", fetchMock);
+  stubRoutedFetch(fetchMock);
   return fetchMock;
 }
 
@@ -249,7 +251,7 @@ describe("App", () => {
         .mockResolvedValueOnce(
           mockJsonResponse(makeWakeResponse({ froude_number: 0.9 })),
         );
-      vi.stubGlobal("fetch", fetchMock);
+      stubRoutedFetch(fetchMock);
       render(<App />);
 
       await waitFor(() => {
@@ -437,7 +439,7 @@ describe("App", () => {
             }),
         )
         .mockResolvedValue(mockJsonResponse(makeAdvancedWakeResponse()));
-      vi.stubGlobal("fetch", fetchMock);
+      stubRoutedFetch(fetchMock);
       render(<App />);
 
       await waitFor(() => {
@@ -483,6 +485,164 @@ describe("App", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+  });
+  describe("wave interference", () => {
+    function waveBodies(waveFetch: { mock: { calls: unknown[][] } }) {
+      return waveFetch.mock.calls.map(
+        (call) =>
+          JSON.parse(String((call[1] as RequestInit).body)) as Record<
+            string,
+            unknown
+          >,
+      );
+    }
+
+    function selectSpecies(value: string) {
+      fireEvent.change(screen.getByLabelText("Duck species"), {
+        target: { value },
+      });
+    }
+
+    it("renders the wave view with all three families beside the wake view", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      expect(
+        screen.getByRole("region", { name: "Wave pattern visualization" }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole("radio").map((r) => r.getAttribute("value"))).toEqual(
+        ["transverse", "divergent", "both"],
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wave-svg")).toBeInTheDocument();
+        expect(screen.getByTestId("wake-svg")).toBeInTheDocument();
+      });
+    });
+
+    it("requests the wave field with length and speed, and refetches on a speed change", async () => {
+      const waveFetch = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(mockJsonResponse(makeWaveFieldResponse())),
+        );
+      stubRoutedFetch(
+        vi.fn().mockResolvedValue(mockJsonResponse(makeWakeResponse())),
+        waveFetch,
+      );
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wave-svg")).toBeInTheDocument();
+      });
+      expect(waveBodies(waveFetch)).toEqual([
+        { duck_length_m: 0.55, swimming_speed_m_s: 1.2 },
+      ]);
+
+      fireEvent.change(screen.getByLabelText("Swimming speed"), {
+        target: { value: "2.0" },
+      });
+      await waitFor(() => {
+        expect(waveBodies(waveFetch).at(-1)).toEqual({
+          duck_length_m: 0.55,
+          swimming_speed_m_s: 2.0,
+        });
+      });
+    });
+
+    it("requests the preset length when the species changes", async () => {
+      const waveFetch = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(mockJsonResponse(makeWaveFieldResponse())),
+        );
+      stubRoutedFetch(
+        vi.fn().mockResolvedValue(mockJsonResponse(makeWakeResponse())),
+        waveFetch,
+      );
+      render(<App />);
+      await waitFor(() => {
+        expect(waveFetch).toHaveBeenCalled();
+      });
+
+      selectSpecies("teal");
+      await waitFor(() => {
+        expect(waveBodies(waveFetch).at(-1)).toEqual({
+          duck_length_m: 0.35,
+          swimming_speed_m_s: 1.2,
+        });
+      });
+    });
+
+    it("does not refetch the wave field for physics mode or wave family changes", async () => {
+      const waveFetch = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(mockJsonResponse(makeWaveFieldResponse())),
+        );
+      stubRoutedFetch(
+        vi.fn().mockImplementation((_url: unknown, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body)) as {
+            physics_mode: string;
+          };
+          return Promise.resolve(
+            mockJsonResponse(
+              body.physics_mode === "advanced"
+                ? makeAdvancedWakeResponse()
+                : makeWakeResponse(),
+            ),
+          );
+        }),
+        waveFetch,
+      );
+      render(<App />);
+      await waitFor(() => {
+        expect(screen.getByTestId("wave-svg")).toBeInTheDocument();
+      });
+      expect(waveFetch).toHaveBeenCalledTimes(1);
+
+      selectMode("advanced");
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-apparent-port")).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByRole("radio", { name: "Transverse" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Divergent" }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      expect(screen.getByTestId("wave-svg")).toHaveAttribute(
+        "data-family",
+        "divergent",
+      );
+      expect(waveFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("a wave-field failure does not affect the wake visualization", async () => {
+      stubRoutedFetch(
+        vi.fn().mockResolvedValue(mockJsonResponse(makeWakeResponse())),
+        vi.fn().mockResolvedValue(mockJsonResponse({ detail: "boom" }, 500)),
+      );
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wave-status")).toHaveTextContent(
+          /Wave-field request failed \(500\)/,
+        );
+      });
+      expect(screen.getByTestId("wake-svg")).toBeInTheDocument();
+      expect(screen.queryByTestId("wake-status")).not.toBeInTheDocument();
+    });
+
+    it("a wake failure does not affect the wave visualization", async () => {
+      stubRoutedFetch(
+        vi.fn().mockResolvedValue(mockJsonResponse({ detail: "boom" }, 500)),
+      );
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-status")).toHaveTextContent(/500/);
+        expect(screen.getByTestId("wave-svg")).toBeInTheDocument();
       });
     });
   });

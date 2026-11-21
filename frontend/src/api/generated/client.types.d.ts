@@ -63,6 +63,56 @@ export type WakeResponse = {
    */
   apparent_starboard_boundary: Array<Point2D>;
 }
+export type WaveFieldRequest = {
+  /**
+   * Duck body length in meters
+   */
+  duck_length_m: number;
+  /**
+   * Swimming speed in meters per second
+   */
+  swimming_speed_m_s: number;
+}
+export type WaveFieldResponse = {
+  duck_length_m: number;
+  swimming_speed_m_s: number;
+  froude_number: number;
+  /**
+   * Kelvin envelope half-angle in degrees; fixed reference
+   */
+  kelvin_angle_deg: number;
+  wake_length_m: number;
+  /**
+   * Illustrative transverse wavelength rule L * (1 + 2 Fr)
+   */
+  transverse_wavelength_m: number;
+  /**
+   * Illustrative divergent wavelength (fraction of transverse)
+   */
+  divergent_wavelength_m: number;
+  nx: number;
+  ny: number;
+  /**
+   * Grid x coordinates (m), -wake_length to 0
+   */
+  x_m: Array<number>;
+  /**
+   * Grid y coordinates (m), symmetric about 0
+   */
+  y_m: Array<number>;
+  /**
+   * Transverse displacement, [ny][nx], arbitrary units
+   */
+  transverse: Array<Array<number>>;
+  /**
+   * Divergent displacement, [ny][nx], arbitrary units
+   */
+  divergent: Array<Array<number>>;
+  /**
+   * Transverse plus divergent displacement, [ny][nx]
+   */
+  combined: Array<Array<number>>;
+}
 export type ValidationError = { loc: Array<(string | number)>, msg: string, type: string }
 export type HTTPValidationError = Partial<{ detail: Array<ValidationError> }>
 
@@ -92,6 +142,26 @@ export type post_ComputeWake = {
 },
       
     }
+/**
+ * Returns a deterministic, gridded water-surface displacement field behind the duck for two wave families (transverse and divergent) and their sum (combined). This is an illustrative interference model, not a fluid simulation, not a physically derived Kelvin wake solution, and not a physically exact duck wake. Displacements are arbitrary, dimensionless units. Grid values are [ny][nx] (row = y index, column = x index); coordinates are in meters. The field depends only on duck length and swimming speed.
+ */
+export type post_ComputeWaveField = {
+      method: "POST",
+      path: "/api/wave-field",
+      requestFormat: "json",
+      responseFormat: "json",
+      parameters: {
+            
+        
+        
+        
+        body:  Schemas.WaveFieldRequest,
+          }
+      responses: {200: Schemas.WaveFieldResponse,
+422: Schemas.HTTPValidationError,
+},
+      
+    }
 
   // </Endpoints>
   }
@@ -100,7 +170,8 @@ export type post_ComputeWake = {
      // <EndpointByMethod>
      export type EndpointByMethod = {
      post: {
-           "/api/wake": Endpoints.post_ComputeWake
+           "/api/wake": Endpoints.post_ComputeWake,
+"/api/wave-field": Endpoints.post_ComputeWaveField
          }
      }
      

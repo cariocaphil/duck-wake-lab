@@ -244,3 +244,115 @@
     height: 280px;
   }
 }
+
+/* Wave interference view (additive) */
+.wave-model-label {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #4a6670;
+}
+
+.wave-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.wave-family {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.wave-family legend {
+  float: left;
+  margin-right: 1rem;
+  padding: 0;
+  font-weight: 600;
+}
+
+.wave-family-option,
+.wave-kelvin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.wave-container {
+  background: #f7f7f7;
+}
+
+.wave-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wave-kelvin-arm {
+  stroke: #1a3a4a;
+  stroke-width: 2px;
+  stroke-dasharray: 8 5;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.75;
+}
+
+.wave-duck {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.5px;
+}
+
+.wave-legend {
+  margin-top: 0.75rem;
+  max-width: 420px;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.wave-legend-bar {
+  height: 0.8rem;
+  border: 1px solid #c3d2d9;
+  border-radius: 3px;
+}
+
+.wave-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+}
+
+.wave-legend-note {
+  margin: 0.4rem 0 0;
+  color: #4a6670;
+}
+
+.wave-explanation {
+  margin-top: 1rem;
+  font-size: 0.92rem;
+  color: #334155;
+}
+
+.wave-explanation summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #1a3a4a;
+}
+
+.wave-explanation dt {
+  margin-top: 0.6rem;
+  font-weight: 600;
+  color: #1a3a4a;
+}
+
+.wave-explanation dd {
+  margin: 0.15rem 0 0;
+}

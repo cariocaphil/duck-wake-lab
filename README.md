@@ -4,6 +4,8 @@ Interactive educational physics simulator for the V-shaped wake produced by a sw
 
 **Today:** pick a duck species (Teal 0.35 m, Mallard 0.55 m, Muscovy 0.75 m; illustrative default body lengths only), adjust duck length and swimming speed, and choose a physics mode (Kelvin or Advanced) in the browser; FastAPI computes wake geometry with the NumPy physics engine; React draws the result as an SVG and shows Froude number and wake half-angles. Selecting a species resets the length to its default and keeps the speed; the length can then be overridden manually without changing the species (the UI then marks it as a "custom length").
 
+**Wave interference:** below the wake view, a static top-down map shows an *illustrative* transverse / divergent / combined wave pattern behind the duck, with an explanation of constructive and destructive interference (see [Wave interference model](#wave-interference-model-illustrative)).
+
 **Later:** animated swimming and a speaking duck that explains the science.
 
 ## Planned physics levels
@@ -13,9 +15,11 @@ Interactive educational physics simulator for the V-shaped wake produced by a sw
 | 1 | **Kelvin** (default) | Idealized deep-water envelope; fixed half-angle ≈ 19.47° |
 | 2 | **Advanced** | Kelvin envelope plus a simplified, Froude-dependent *apparent* wake angle (educational approximation) |
 
+The wave-interference view is separate from these two modes: it is an extra visualization of the waves *inside* the wake and is not affected by the Kelvin/Advanced selection.
+
 ## Technology stack
 
-**Frontend:** React 19, TypeScript, Vite, SVG, Zod, typed-openapi, Vitest, React Testing Library, ESLint
+**Frontend:** React 19, TypeScript, Vite, SVG and Canvas, Zod, typed-openapi, Vitest, React Testing Library, ESLint
 
 **Backend:** Python 3.12+, uv, FastAPI, NumPy, Pydantic, pytest, Ruff
 
@@ -37,9 +41,9 @@ contracts/openapi.yaml
 1. Edit the OpenAPI contract when the API shape changes.
 2. Align FastAPI request/response models to match.
 3. Regenerate the TypeScript client and Zod schemas.
-4. React calls `POST /api/wake` through the generated client (thin `wakeClient` wrapper).
+4. React calls `POST /api/wake` and `POST /api/wave-field` through the generated client (thin `wakeClient` wrapper).
 
-Backend OpenAPI drift is covered by `tests/test_openapi_contract.py` (compares the YAML to `app.openapi()` for the wake surface). Frontend codegen drift is covered by `npm run check:api` (regenerate, then fail if generated files are dirty).
+Backend OpenAPI drift is covered by `tests/test_openapi_contract.py` (compares the YAML to `app.openapi()` for the wake and wave-field surfaces). Frontend codegen drift is covered by `npm run check:api` (regenerate, then fail if generated files are dirty).
 
 ## Project structure
 
@@ -56,7 +60,8 @@ duck-wake-lab/
 │   │   │   ├── generated/       # typed-openapi output (do not hand-edit)
 │   │   │   └── wakeClient.ts    # Thin wrapper + error mapping
 │   │   ├── components/
-│   │   ├── hooks/useWakeQuery.ts
+│   │   ├── hooks/               # useDebouncedQuery, useWakeQuery, useWaveFieldQuery
+│   │   ├── waves/waveField.ts   # Pure helpers: family selection, color scale, pixels
 │   │   ├── pages/WakePage.tsx
 │   │   ├── App.tsx
 │   │   └── main.tsx
@@ -66,7 +71,8 @@ duck-wake-lab/
 │   │   ├── main.py
 │   │   ├── schemas.py
 │   │   ├── wake_service.py
-│   │   └── physics/
+│   │   ├── wave_field_service.py
+│   │   └── physics/             # froude, kelvin, advanced, waves
 │   └── tests/
 └── README.md
 ```
@@ -94,6 +100,7 @@ WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry (Point2D boundaries)
 2. The physics mode selector (Kelvin or Advanced) is part of the same controlled state. After a short debounce, the frontend posts via the generated client; in-flight requests are aborted when any input (including the mode) changes again, and stale responses are ignored.
 3. The backend builds `DuckParameters`, computes Froude number, and samples Kelvin envelope arms with `wake_length_m = duck_length_m × 10`. In advanced mode it also samples the apparent wake arms.
 4. The SVG renders `port_boundary` / `starboard_boundary` Point2D arrays (Kelvin envelope), and in advanced mode `apparent_port_boundary` / `apparent_starboard_boundary` plus a legend. Froude number and angles come from the response.
+5. In parallel, a second query (`useWaveFieldQuery`, same debounce/abort/stale-response mechanics via `useDebouncedQuery`) posts length and speed to `/api/wave-field`. It does not depend on the physics mode or the selected wave family. A Canvas draws the selected grid with a fixed color scale, and an SVG overlay adds the duck and optional Kelvin boundary lines.
 
 ### Slider expectations (Kelvin model)
 
@@ -126,7 +133,7 @@ The duck sits at the origin and swims in \(+x\); wake arms extend in \(-x\) at \
 
 ### Limitations
 
-- Envelope arms only (no transverse/divergent interference pattern)
+- The Kelvin/Advanced geometry is envelope arms only; the transverse/divergent interference pattern is a separate illustrative model (see below)
 - The Kelvin envelope angle has no speed dependence (see Advanced mode below for the apparent wake)
 - Idealized deep-water assumption
 
@@ -152,10 +159,36 @@ with the length-based Froude number \(Fr = v / \sqrt{gL}\). The apparent angle e
 **This is an illustrative educational approximation, not a universally valid hydrodynamic law.** Limitations:
 
 - The coefficient 0.5 is not derived from the water-wave equations.
-- No wave interference, amplitude field, CFD, or particle simulation; the wake is drawn as straight arms.
+- The apparent wake itself has no interference or amplitude field (it is drawn as straight arms); no CFD or particle simulation.
 - Deep water only: no finite depth, surface tension, or hull-shape effects.
 - Froude number is based on body length, as for ships; a duck is not a ship hull.
 - With the slider ranges (length 0.2 to 1.0 m, speed 0.1 to 3.0 m/s), the narrowing is only reachable for short ducks at high speed (Teal needs more than about 2.6 m/s; Mallard and Muscovy cannot reach `Fr > 1.41`). Below that threshold Advanced mode looks identical to Kelvin, and the UI says so. Such speeds are far beyond real duck swimming.
+
+### Wave interference model (illustrative)
+
+`physics/waves.py` builds a deterministic 2D surface-displacement field behind the duck from the superposition principle
+
+\[
+\eta(x,y)=\sum_i A_i(x,y)\cos\big(\phi_i(x,y)\big),
+\qquad
+\eta_{\text{combined}}=\eta_{\text{transverse}}+\eta_{\text{divergent}}
+\]
+
+With \(s=-x\ge 0\) the distance behind the duck and \(L\) the duck length (all lengths below are in duck lengths, so the pattern depends only on \(Fr\); species change the scale, not the look, at equal \(Fr\)):
+
+| Piece | Rule (illustrative) |
+| --- | --- |
+| Wavelength | \(\lambda_t = L\,(1+2\,Fr)\), \(\lambda_d = 0.5\,\lambda_t\). Grows with speed so the pattern visibly responds. |
+| Transverse phase | \(\phi_t = k_t\,(s + y^2/(2R))\) with \(R = 8L\) (`TRANSVERSE_CURVATURE_RADIUS_FACTOR`): crests across the direction of travel, bowing back toward the duck at the edges. |
+| Divergent phase | \(\phi_d = k_d\,(s\cos\psi + \lvert y\rvert\sin\psi)\), \(\psi=\arcsin(1/\sqrt3)\approx 35.3^\circ\), with \(\lvert y\rvert\) smoothed on the axis: chevron-shaped diagonal crests. |
+| Envelopes | Smooth ramp-in from \(s=0\) (nothing ahead of the duck); a smooth lateral window tied to the Kelvin half-angle (transverse 0.7, divergent 0.9 of the cone); \(1/\sqrt{1+s/L}\) decay. |
+| Amplitudes | Transverse 1.0, divergent 0.7: arbitrary, dimensionless numbers. |
+| Determinism | No random phases. The field depends on \(y\) only through \(y^2\) and \(\lvert y\rvert\), so it is exactly mirror-symmetric. Speed 0 gives a flat field. |
+| Grid | Fixed 121 × 49 points over \(x\in[-10L,0]\), \(\lvert y\rvert \le 1.1\cdot 10L\tan\theta_K\) (not client-controllable; about 115 KB of JSON). |
+
+**What is illustrative and not physically derived:** the wavelength rule (real deep-water transverse waves scale like \(2\pi v^2/g\); that is compressed here so it stays readable across the slider range), the curvature radius, the divergent angle and wavelength ratio, every envelope, the decay, and the amplitudes. This is **not** a fluid simulation, **not** the Kelvin wake integral, and does **not** reproduce a physically exact duck wake. There is no energy dissipation or amplitude calibration, and no animation. The Kelvin formulas and Froude number are reused unchanged; the Kelvin angle only supplies the reference envelope.
+
+In the UI, *Transverse*, *Divergent* and *Both* (the combined field) are switched client-side from one response, with no extra request. One symmetric color scale (the largest absolute displacement over all three fields of the response) is used for every view, so a weak family looks weak next to the combined field and regions where interference strengthens or cancels are visible. Orange is a crest (positive displacement), blue a trough (negative); where the two families have the same sign they reinforce (constructive interference), where the signs differ they partially or fully cancel (destructive interference).
 
 ### Usage example
 
@@ -224,6 +257,41 @@ Response:
 - `apparent_angle_deg` and `apparent_*_boundary` are the apparent wake. In `kelvin` mode they equal the envelope; in `advanced` mode `apparent_angle_deg <= kelvin_angle_deg`.
 
 NumPy arrays are converted to JSON-serializable `Point2D` lists at the API boundary.
+
+### `POST /api/wave-field`
+
+Illustrative wave-interference field (see [Wave interference model](#wave-interference-model-illustrative)). It depends only on duck length and swimming speed and has no `physics_mode`.
+
+Request (same validation as `/api/wake`; extra fields such as `physics_mode` return 422):
+
+```json
+{ "duck_length_m": 0.55, "swimming_speed_m_s": 1.2 }
+```
+
+Response (abridged):
+
+```json
+{
+  "duck_length_m": 0.55,
+  "swimming_speed_m_s": 1.2,
+  "froude_number": 0.516,
+  "kelvin_angle_deg": 19.47,
+  "wake_length_m": 5.5,
+  "transverse_wavelength_m": 1.12,
+  "divergent_wavelength_m": 0.56,
+  "nx": 121,
+  "ny": 49,
+  "x_m": [-5.5, "...", 0.0],
+  "y_m": [-2.14, "...", 2.14],
+  "transverse": [[0.0, "..."], "..."],
+  "divergent": [[0.0, "..."], "..."],
+  "combined": [[0.0, "..."], "..."]
+}
+```
+
+- Grids are `[ny][nx]` (row = y index, column = x index); coordinates are in meters, displacements are arbitrary dimensionless units.
+- `transverse` and `divergent` are rounded to 4 decimals and `combined` is computed from those rounded arrays, so `combined = transverse + divergent` holds to within float tolerance (about 1e-9).
+- All values are finite; repeated identical requests return identical bodies.
 
 ## Local installation
 
@@ -304,5 +372,6 @@ npm run typecheck
 
 ## Features planned for future PRs
 
-- Animation and interactive exploration improvements
+- Animated wave propagation and a swimming duck animation
+- Interactive exploration improvements
 - Educational explanations from a speaking duck

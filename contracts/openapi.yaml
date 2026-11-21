@@ -35,6 +35,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
+  /api/wave-field:
+    post:
+      operationId: computeWaveField
+      summary: Compute illustrative wave-interference field
+      description: >
+        Returns a deterministic, gridded water-surface displacement field
+        behind the duck for two wave families (transverse and divergent) and
+        their sum (combined). This is an illustrative interference model, not
+        a fluid simulation, not a physically derived Kelvin wake solution, and
+        not a physically exact duck wake. Displacements are arbitrary,
+        dimensionless units. Grid values are [ny][nx] (row = y index, column =
+        x index); coordinates are in meters. The field depends only on duck
+        length and swimming speed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaveFieldRequest"
+      responses:
+        "200":
+          description: Wave-field grid and model parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaveFieldResponse"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
 components:
   schemas:
     Point2D:
@@ -128,6 +160,95 @@ components:
           description: Starboard-side apparent wake arm (equals the envelope in kelvin mode)
           items:
             $ref: "#/components/schemas/Point2D"
+      additionalProperties: false
+    WaveFieldRequest:
+      type: object
+      required:
+        - duck_length_m
+        - swimming_speed_m_s
+      properties:
+        duck_length_m:
+          type: number
+          description: Duck body length in meters
+          minimum: 0
+          exclusiveMinimum: true
+        swimming_speed_m_s:
+          type: number
+          description: Swimming speed in meters per second
+          minimum: 0
+      additionalProperties: false
+    WaveFieldResponse:
+      type: object
+      required:
+        - duck_length_m
+        - swimming_speed_m_s
+        - froude_number
+        - kelvin_angle_deg
+        - wake_length_m
+        - transverse_wavelength_m
+        - divergent_wavelength_m
+        - nx
+        - ny
+        - x_m
+        - y_m
+        - transverse
+        - divergent
+        - combined
+      properties:
+        duck_length_m:
+          type: number
+        swimming_speed_m_s:
+          type: number
+        froude_number:
+          type: number
+        kelvin_angle_deg:
+          type: number
+          description: Kelvin envelope half-angle in degrees; fixed reference
+        wake_length_m:
+          type: number
+        transverse_wavelength_m:
+          type: number
+          description: Illustrative transverse wavelength rule L * (1 + 2 Fr)
+        divergent_wavelength_m:
+          type: number
+          description: Illustrative divergent wavelength (fraction of transverse)
+        nx:
+          type: integer
+          minimum: 2
+        ny:
+          type: integer
+          minimum: 3
+        x_m:
+          type: array
+          description: Grid x coordinates (m), -wake_length to 0
+          items:
+            type: number
+        y_m:
+          type: array
+          description: Grid y coordinates (m), symmetric about 0
+          items:
+            type: number
+        transverse:
+          type: array
+          description: Transverse displacement, [ny][nx], arbitrary units
+          items:
+            type: array
+            items:
+              type: number
+        divergent:
+          type: array
+          description: Divergent displacement, [ny][nx], arbitrary units
+          items:
+            type: array
+            items:
+              type: number
+        combined:
+          type: array
+          description: Transverse plus divergent displacement, [ny][nx]
+          items:
+            type: array
+            items:
+              type: number
       additionalProperties: false
     ValidationError:
       type: object

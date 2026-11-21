@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
 import {
   fetchWake,
-  WakeApiError,
   type WakeRequest,
   type WakeResponse,
 } from "../api/wakeClient";
-import { WAKE_FETCH_DEBOUNCE_MS, type WakeControlValues } from "../types";
+import { type WakeControlValues } from "../types";
+import { useDebouncedQuery } from "./useDebouncedQuery";
 
 export interface WakeQueryState {
   wake: WakeResponse | null;
@@ -21,13 +21,6 @@ function sameRequest(a: WakeRequest, b: WakeRequest): boolean {
   );
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof WakeApiError || err instanceof Error) {
-    return err.message;
-  }
-  return "Failed to load wake geometry";
-}
-
 /**
  * Debounced wake fetch with abort-on-input-change to avoid stale responses.
  * Delay is 0 until the first successful settle; after that always WAKE_FETCH_DEBOUNCE_MS.
@@ -37,76 +30,21 @@ export function useWakeQuery({
   speedMS,
   physicsMode,
 }: WakeControlValues): WakeQueryState {
-  const [wake, setWake] = useState<WakeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const abortRef = useRef<AbortController | null>(null);
-  const latestRequestRef = useRef<WakeRequest>({
-    duck_length_m: duckLengthM,
-    swimming_speed_m_s: speedMS,
-    physics_mode: physicsMode,
-  });
-  const hasSucceededRef = useRef(false);
-
-  useEffect(() => {
-    const request: WakeRequest = {
+  const request = useMemo<WakeRequest>(
+    () => ({
       duck_length_m: duckLengthM,
       swimming_speed_m_s: speedMS,
       physics_mode: physicsMode,
-    };
-    latestRequestRef.current = request;
+    }),
+    [duckLengthM, speedMS, physicsMode],
+  );
 
-    // Abort any in-flight request immediately when inputs change.
-    abortRef.current?.abort();
-    abortRef.current = null;
+  const { data, error, loading } = useDebouncedQuery({
+    request,
+    fetcher: fetchWake,
+    sameRequest,
+    fallbackError: "Failed to load wake geometry",
+  });
 
-    setLoading(true);
-    setError(null);
-
-    const delay = hasSucceededRef.current ? WAKE_FETCH_DEBOUNCE_MS : 0;
-
-    const timer = window.setTimeout(() => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      void (async () => {
-        try {
-          const result = await fetchWake(request, controller.signal);
-          if (controller.signal.aborted) {
-            return;
-          }
-          if (!sameRequest(request, latestRequestRef.current)) {
-            return;
-          }
-          hasSucceededRef.current = true;
-          setWake(result);
-          setLoading(false);
-          setError(null);
-        } catch (err) {
-          if (controller.signal.aborted) {
-            return;
-          }
-          if (!sameRequest(request, latestRequestRef.current)) {
-            return;
-          }
-          setWake(null);
-          setLoading(false);
-          setError(toErrorMessage(err));
-        }
-      })();
-    }, delay);
-
-    return () => {
-      window.clearTimeout(timer);
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-  }, [duckLengthM, speedMS, physicsMode]);
-
-  return {
-    wake,
-    error,
-    loading,
-  };
+  return { wake: data, error, loading };
 }

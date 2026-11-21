@@ -4,8 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from duck_wake_lab.schemas import WakeRequest, WakeResponse
+from duck_wake_lab.schemas import (
+    WakeRequest,
+    WakeResponse,
+    WaveFieldRequest,
+    WaveFieldResponse,
+)
 from duck_wake_lab.wake_service import compute_wake
+from duck_wake_lab.wave_field_service import compute_wave_field
 
 app = FastAPI(
     title="Duck Wake Lab",
@@ -41,3 +47,9 @@ def health() -> HealthResponse:
 def wake(request: WakeRequest) -> WakeResponse:
     """Compute wake geometry (Kelvin envelope and apparent wake) for a duck."""
     return compute_wake(request)
+
+
+@app.post("/api/wave-field", response_model=WaveFieldResponse)
+def wave_field(request: WaveFieldRequest) -> WaveFieldResponse:
+    """Compute the illustrative transverse/divergent wave-interference field."""
+    return compute_wave_field(request)

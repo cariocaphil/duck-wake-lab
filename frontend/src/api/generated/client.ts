@@ -13,6 +13,12 @@ export const WakeRequest = z.strictObject({ duck_length_m: z.number().gt(0), swi
 export type WakeResponse = __TypedOpenapi.Schemas.WakeResponse;
 export const WakeResponse = z.strictObject({ physics_mode: z.enum(["kelvin", "advanced"]), froude_number: z.number(), kelvin_angle_deg: z.number(), apparent_angle_deg: z.number(), wake_length_m: z.number(), port_boundary: z.array(Point2D), starboard_boundary: z.array(Point2D), apparent_port_boundary: z.array(Point2D), apparent_starboard_boundary: z.array(Point2D) });
 
+export type WaveFieldRequest = __TypedOpenapi.Schemas.WaveFieldRequest;
+export const WaveFieldRequest = z.strictObject({ duck_length_m: z.number().gt(0), swimming_speed_m_s: z.number().min(0) });
+
+export type WaveFieldResponse = __TypedOpenapi.Schemas.WaveFieldResponse;
+export const WaveFieldResponse = z.strictObject({ duck_length_m: z.number(), swimming_speed_m_s: z.number(), froude_number: z.number(), kelvin_angle_deg: z.number(), wake_length_m: z.number(), transverse_wavelength_m: z.number(), divergent_wavelength_m: z.number(), nx: z.number().int().min(2), ny: z.number().int().min(3), x_m: z.array(z.number()), y_m: z.array(z.number()), transverse: z.array(z.array(z.number())), divergent: z.array(z.array(z.number())), combined: z.array(z.array(z.number())) });
+
 export type ValidationError = __TypedOpenapi.Schemas.ValidationError;
 export const ValidationError = z.strictObject({ loc: z.array(z.union([z.string(), z.number().int()])), msg: z.string(), type: z.string() });
 
@@ -32,13 +38,24 @@ export const post_ComputeWake = {
   responses: { 200: WakeResponse, 422: HTTPValidationError },
 };
 
+export type post_ComputeWaveField = __TypedOpenapi.Endpoints.post_ComputeWaveField;
+export const post_ComputeWaveField = {
+  method: z.literal("POST"),
+  path: z.literal("/api/wave-field"),
+  requestFormat: z.literal("json"),
+  responseFormat: z.literal("json"),
+  parameters: { body: WaveFieldRequest },
+  responses: { 200: WaveFieldResponse, 422: HTTPValidationError },
+};
+
 // </Endpoints>
 
   
      // <EndpointByMethod>
      export const EndpointByMethod = {
      post: {
-           "/api/wake": post_ComputeWake
+           "/api/wake": post_ComputeWake,
+"/api/wave-field": post_ComputeWaveField
          }
      } satisfies { [M in keyof __TypedOpenapi.EndpointByMethod]: { [P in keyof __TypedOpenapi.EndpointByMethod[M]]: unknown } }
      export type EndpointByMethod = __TypedOpenapi.EndpointByMethod;
