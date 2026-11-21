@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
   expectPostedWake,
+  makeAdvancedWakeResponse,
   makeWakeResponse,
   mockJsonResponse,
   point,
@@ -17,6 +18,30 @@ function mockWakeFetch(wake = makeWakeResponse()) {
   const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse(wake));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+/** Fetch mock that answers according to the posted physics_mode. */
+function mockModeAwareFetch() {
+  const fetchMock = vi
+    .fn()
+    .mockImplementation((_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { physics_mode: string };
+      return Promise.resolve(
+        mockJsonResponse(
+          body.physics_mode === "advanced"
+            ? makeAdvancedWakeResponse()
+            : makeWakeResponse(),
+        ),
+      );
+    });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function selectMode(value: string) {
+  fireEvent.change(screen.getByLabelText("Physics mode"), {
+    target: { value },
+  });
 }
 
 describe("App", () => {
@@ -305,6 +330,159 @@ describe("App", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("wake-status")).toHaveTextContent(/500/);
+      });
+    });
+  });
+
+  describe("physics mode", () => {
+    it("selects Kelvin by default and requests kelvin mode", async () => {
+      const fetchMock = mockModeAwareFetch();
+      render(<App />);
+
+      expect(screen.getByLabelText("Physics mode")).toHaveValue("kelvin");
+      expect(screen.getByTestId("param-physics-mode")).toHaveTextContent(
+        "Kelvin (Classic)",
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-svg")).toBeInTheDocument();
+      });
+      expectPostedWake(fetchMock, {
+        duck_length_m: 0.55,
+        swimming_speed_m_s: 1.2,
+        physics_mode: "kelvin",
+      });
+      expect(screen.queryByTestId("wake-apparent-port")).not.toBeInTheDocument();
+    });
+
+    it("switching to advanced posts the new mode and renders both wakes", async () => {
+      const fetchMock = mockModeAwareFetch();
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-svg")).toBeInTheDocument();
+      });
+
+      selectMode("advanced");
+
+      await waitFor(() => {
+        expectPostedWake(fetchMock, {
+          duck_length_m: 0.55,
+          swimming_speed_m_s: 1.2,
+          physics_mode: "advanced",
+        });
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-apparent-port")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("wake-port")).toBeInTheDocument();
+      expect(screen.getByTestId("wake-legend")).toBeInTheDocument();
+      expect(screen.getByTestId("wake-half-angle")).toHaveTextContent("19.47°");
+      expect(screen.getByTestId("wake-apparent-angle")).toHaveTextContent(
+        "14.04°",
+      );
+    });
+
+    it("switching back to Kelvin restores the Kelvin visualization", async () => {
+      mockModeAwareFetch();
+      render(<App />);
+
+      selectMode("advanced");
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-apparent-port")).toBeInTheDocument();
+      });
+
+      selectMode("kelvin");
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("wake-apparent-port"),
+        ).not.toBeInTheDocument();
+      });
+      expect(screen.queryByTestId("wake-legend")).not.toBeInTheDocument();
+      expect(screen.getByTestId("wake-svg")).toHaveAttribute(
+        "aria-label",
+        "Kelvin wake envelope",
+      );
+    });
+
+    it("keeps species and speed controls working in advanced mode", async () => {
+      const fetchMock = mockModeAwareFetch();
+      render(<App />);
+
+      selectMode("advanced");
+      fireEvent.change(screen.getByLabelText("Duck species"), {
+        target: { value: "teal" },
+      });
+      fireEvent.change(screen.getByLabelText("Swimming speed"), {
+        target: { value: "3.0" },
+      });
+
+      expect(screen.getByLabelText("Physics mode")).toHaveValue("advanced");
+      await waitFor(() => {
+        expectPostedWake(fetchMock, {
+          duck_length_m: 0.35,
+          swimming_speed_m_s: 3.0,
+          physics_mode: "advanced",
+        });
+      });
+    });
+
+    it("a stale response cannot overwrite a newer mode selection", async () => {
+      let resolveStale: ((value: unknown) => void) | undefined;
+      const fetchMock = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveStale = resolve;
+            }),
+        )
+        .mockResolvedValue(mockJsonResponse(makeAdvancedWakeResponse()));
+      vi.stubGlobal("fetch", fetchMock);
+      render(<App />);
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      });
+
+      selectMode("advanced");
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-apparent-port")).toBeInTheDocument();
+      });
+
+      // The abandoned Kelvin request finishes late.
+      resolveStale?.(mockJsonResponse(makeWakeResponse()));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(screen.getByTestId("wake-apparent-port")).toBeInTheDocument();
+      expect(screen.getByTestId("wake-legend")).toBeInTheDocument();
+    });
+  });
+
+  describe("custom length label", () => {
+    it("labels Mallard as custom after a manual length change and clears on reselect", async () => {
+      mockModeAwareFetch();
+      render(<App />);
+
+      fireEvent.change(screen.getByLabelText("Duck length"), {
+        target: { value: "0.90" },
+      });
+
+      expect(screen.getByLabelText("Duck species")).toHaveValue("mallard");
+      expect(screen.getByTestId("param-species")).toHaveTextContent(
+        "Mallard (custom length)",
+      );
+      expect(screen.getByTestId("custom-length-hint")).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Duck species"), {
+        target: { value: "mallard" },
+      });
+
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.55");
+      expect(screen.getByTestId("param-species")).toHaveTextContent(/^Mallard$/);
+      expect(screen.queryByTestId("custom-length-hint")).not.toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
       });
     });
   });

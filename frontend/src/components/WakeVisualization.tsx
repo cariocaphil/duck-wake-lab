@@ -1,5 +1,5 @@
 import type { WakeResponse } from "../api/wakeClient";
-import { computeViewBox, polylinePoints } from "../svg/wakeSvg";
+import { computeViewBox, polylinePoints, wedgePoints } from "../svg/wakeSvg";
 
 interface WakeVisualizationProps {
   wake: WakeResponse | null;
@@ -13,6 +13,9 @@ export function WakeVisualization({
   error,
 }: WakeVisualizationProps) {
   const isError = error !== null;
+  // Render from the response's own mode so a stale control value can never
+  // mismatch the geometry on screen.
+  const isAdvanced = wake?.physics_mode === "advanced";
   const status = isError
     ? error
     : loading && wake === null
@@ -45,7 +48,11 @@ export function WakeVisualization({
         {wake !== null ? (
           <svg
             role="img"
-            aria-label="Kelvin wake envelope"
+            aria-label={
+              isAdvanced
+                ? "Kelvin envelope and apparent wake"
+                : "Kelvin wake envelope"
+            }
             viewBox={computeViewBox(wake)}
             preserveAspectRatio="xMidYMid meet"
             data-testid="wake-svg"
@@ -63,18 +70,44 @@ export function WakeVisualization({
                 <path d="M0,0 L6,3 L0,6 Z" className="swim-arrow-head" />
               </marker>
             </defs>
+            {isAdvanced && (
+              <polygon
+                data-testid="wake-apparent-region"
+                className="wake-apparent-region"
+                points={wedgePoints(
+                  wake.apparent_port_boundary,
+                  wake.apparent_starboard_boundary,
+                )}
+              />
+            )}
             <polyline
               data-testid="wake-port"
-              className="wake-arm wake-arm-port"
+              className={`wake-arm wake-arm-port${isAdvanced ? " wake-envelope-arm" : ""}`}
               fill="none"
               points={polylinePoints(wake.port_boundary)}
             />
             <polyline
               data-testid="wake-starboard"
-              className="wake-arm wake-arm-starboard"
+              className={`wake-arm wake-arm-starboard${isAdvanced ? " wake-envelope-arm" : ""}`}
               fill="none"
               points={polylinePoints(wake.starboard_boundary)}
             />
+            {isAdvanced && (
+              <>
+                <polyline
+                  data-testid="wake-apparent-port"
+                  className="wake-apparent-arm"
+                  fill="none"
+                  points={polylinePoints(wake.apparent_port_boundary)}
+                />
+                <polyline
+                  data-testid="wake-apparent-starboard"
+                  className="wake-apparent-arm"
+                  fill="none"
+                  points={polylinePoints(wake.apparent_starboard_boundary)}
+                />
+              </>
+            )}
             <circle
               data-testid="wake-duck"
               className="wake-duck"
@@ -98,6 +131,25 @@ export function WakeVisualization({
           </div>
         )}
       </div>
+
+      {wake !== null && isAdvanced && (
+        <ul className="wake-legend" data-testid="wake-legend" aria-label="Legend">
+          <li>
+            <span
+              className="wake-legend-swatch wake-legend-swatch--envelope"
+              aria-hidden="true"
+            />
+            Kelvin envelope (fixed)
+          </li>
+          <li>
+            <span
+              className="wake-legend-swatch wake-legend-swatch--apparent"
+              aria-hidden="true"
+            />
+            Apparent wake (dominant)
+          </li>
+        </ul>
+      )}
 
       {wake !== null && statusMessage}
     </section>

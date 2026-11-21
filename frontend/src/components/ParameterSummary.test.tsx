@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ParameterSummary } from "./ParameterSummary";
-import { makeWakeResponse } from "../test/wakeFixtures";
+import { makeAdvancedWakeResponse, makeWakeResponse } from "../test/wakeFixtures";
 import { DEFAULT_CONTROLS } from "../types";
 
 describe("ParameterSummary", () => {
@@ -52,6 +52,91 @@ describe("ParameterSummary", () => {
     expect(screen.getByTestId("param-species")).toHaveTextContent("Teal");
     expect(screen.getByTestId("param-body-length")).toHaveTextContent(
       "0.62 m",
+    );
+  });
+
+  it("labels a species whose length was changed manually", () => {
+    render(
+      <ParameterSummary
+        species="mallard"
+        values={{ ...DEFAULT_CONTROLS, duckLengthM: 0.9 }}
+        wake={null}
+      />,
+    );
+
+    expect(screen.getByTestId("param-species")).toHaveTextContent(
+      "Mallard (custom length)",
+    );
+  });
+
+  it("shows the plain species name at its preset length", () => {
+    render(
+      <ParameterSummary
+        species="mallard"
+        values={DEFAULT_CONTROLS}
+        wake={null}
+      />,
+    );
+
+    expect(screen.getByTestId("param-species")).toHaveTextContent(/^Mallard$/);
+  });
+
+  it("shows the selected physics mode", () => {
+    render(
+      <ParameterSummary
+        species="mallard"
+        values={{ ...DEFAULT_CONTROLS, physicsMode: "advanced" }}
+        wake={null}
+      />,
+    );
+
+    expect(screen.getByTestId("param-physics-mode")).toHaveTextContent(
+      "Advanced (Speed-dependent)",
+    );
+  });
+
+  it("hides the apparent angle in Kelvin mode", () => {
+    render(
+      <ParameterSummary
+        species="mallard"
+        values={DEFAULT_CONTROLS}
+        wake={makeWakeResponse()}
+      />,
+    );
+
+    expect(screen.queryByTestId("wake-apparent-angle")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("apparent-equals-kelvin-note"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows both angles in advanced mode at high Froude number", () => {
+    render(
+      <ParameterSummary
+        species="teal"
+        values={{ ...DEFAULT_CONTROLS, physicsMode: "advanced" }}
+        wake={makeAdvancedWakeResponse()}
+      />,
+    );
+
+    expect(screen.getByTestId("wake-half-angle")).toHaveTextContent("19.47°");
+    expect(screen.getByTestId("wake-apparent-angle")).toHaveTextContent("14.04°");
+    expect(
+      screen.queryByTestId("apparent-equals-kelvin-note"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains that the apparent wake equals Kelvin below the Froude threshold", () => {
+    render(
+      <ParameterSummary
+        species="mallard"
+        values={{ ...DEFAULT_CONTROLS, physicsMode: "advanced" }}
+        wake={makeWakeResponse({ physics_mode: "advanced", froude_number: 0.5 })}
+      />,
+    );
+
+    expect(screen.getByTestId("apparent-equals-kelvin-note")).toHaveTextContent(
+      "Fr > 1.41",
     );
   });
 });

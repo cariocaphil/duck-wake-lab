@@ -17,6 +17,16 @@ export function polylinePoints(points: Point2D[]): string {
 }
 
 /**
+ * Build an SVG polygon `points` string for the region between two arms:
+ * the port arm outward, then the starboard arm back to the origin.
+ */
+export function wedgePoints(port: Point2D[], starboard: Point2D[]): string {
+  return [...port, ...[...starboard].reverse()]
+    .map((point) => `${point.x_m},${-point.y_m}`)
+    .join(" ");
+}
+
+/**
  * Compute an SVG viewBox that fits the wake scene with padding and room
  * for the swimming-direction arrow ahead of the duck.
  */

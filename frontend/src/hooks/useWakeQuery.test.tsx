@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWakeQuery } from "./useWakeQuery";
 import {
   expectPostedWake,
+  makeAdvancedWakeResponse,
   makeWakeResponse,
   mockJsonResponse,
 } from "../test/wakeFixtures";
@@ -24,7 +25,11 @@ describe("useWakeQuery", () => {
     const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse(wake));
     vi.stubGlobal("fetch", fetchMock);
 
-    const initial: WakeControlValues = { duckLengthM: 0.5, speedMS: 1.2 };
+    const initial: WakeControlValues = {
+      duckLengthM: 0.5,
+      speedMS: 1.2,
+      physicsMode: "kelvin",
+    };
     const { result } = renderHook(() => useWakeQuery(initial));
 
     await waitFor(() => {
@@ -47,7 +52,7 @@ describe("useWakeQuery", () => {
       .mockResolvedValue(mockJsonResponse(makeWakeResponse()));
     vi.stubGlobal("fetch", fetchMock);
 
-    renderHook(() => useWakeQuery({ duckLengthM: 0.5, speedMS: 1.2 }));
+    renderHook(() => useWakeQuery({ duckLengthM: 0.5, speedMS: 1.2, physicsMode: "kelvin" as const }));
 
     expect(fetchMock).not.toHaveBeenCalled();
 
@@ -84,7 +89,7 @@ describe("useWakeQuery", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { rerender } = renderHook(({ values }) => useWakeQuery(values), {
-      initialProps: { values: { duckLengthM: 0.5, speedMS: 1.0 } },
+      initialProps: { values: { duckLengthM: 0.5, speedMS: 1.0, physicsMode: "kelvin" as const } },
     });
 
     // Pre-success: first fetch uses delay 0.
@@ -94,7 +99,7 @@ describe("useWakeQuery", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(signals[0]?.aborted).toBe(false);
 
-    rerender({ values: { duckLengthM: 0.5, speedMS: 2.0 } });
+    rerender({ values: { duckLengthM: 0.5, speedMS: 2.0, physicsMode: "kelvin" as const } });
 
     expect(signals[0]?.aborted).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -126,7 +131,7 @@ describe("useWakeQuery", () => {
 
     const { result, rerender } = renderHook(
       ({ values }) => useWakeQuery(values),
-      { initialProps: { values: { duckLengthM: 0.5, speedMS: 1.2 } } },
+      { initialProps: { values: { duckLengthM: 0.5, speedMS: 1.2, physicsMode: "kelvin" as const } } },
     );
 
     await act(async () => {
@@ -140,7 +145,7 @@ describe("useWakeQuery", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     // Post-success change: full debounce.
-    rerender({ values: { duckLengthM: 0.8, speedMS: 1.2 } });
+    rerender({ values: { duckLengthM: 0.8, speedMS: 1.2, physicsMode: "kelvin" as const } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -157,7 +162,7 @@ describe("useWakeQuery", () => {
     expect(result.current.error).toMatch(/500/);
 
     // After error cleared wake, still debounced (hasSucceeded stays true).
-    rerender({ values: { duckLengthM: 0.9, speedMS: 1.2 } });
+    rerender({ values: { duckLengthM: 0.9, speedMS: 1.2, physicsMode: "kelvin" as const } });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -181,7 +186,11 @@ describe("useWakeQuery", () => {
       vi.fn().mockResolvedValue(mockJsonResponse({ detail: "boom" }, 500)),
     );
 
-    const initial: WakeControlValues = { duckLengthM: 0.5, speedMS: 1.2 };
+    const initial: WakeControlValues = {
+      duckLengthM: 0.5,
+      speedMS: 1.2,
+      physicsMode: "kelvin",
+    };
     const { result } = renderHook(() => useWakeQuery(initial));
 
     await waitFor(() => {
@@ -201,7 +210,7 @@ describe("useWakeQuery", () => {
 
     const { result, rerender } = renderHook(
       ({ values }) => useWakeQuery(values),
-      { initialProps: { values: { duckLengthM: 0.5, speedMS: 1.2 } } },
+      { initialProps: { values: { duckLengthM: 0.5, speedMS: 1.2, physicsMode: "kelvin" as const } } },
     );
 
     await waitFor(() => {
@@ -209,12 +218,115 @@ describe("useWakeQuery", () => {
       expect(result.current.wake).toEqual(wake);
     });
 
-    rerender({ values: { duckLengthM: 0.8, speedMS: 1.2 } });
+    rerender({ values: { duckLengthM: 0.8, speedMS: 1.2, physicsMode: "kelvin" as const } });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
       expect(result.current.wake).toBeNull();
       expect(result.current.error).toMatch(/500/);
     });
+  });
+  it("includes physics_mode in the request and refetches when it changes", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(mockJsonResponse(makeWakeResponse()))
+      .mockResolvedValueOnce(mockJsonResponse(makeAdvancedWakeResponse()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ values }: { values: WakeControlValues }) => useWakeQuery(values),
+      {
+        initialProps: {
+          values: {
+            duckLengthM: 0.35,
+            speedMS: 3.0,
+            physicsMode: "kelvin",
+          } as WakeControlValues,
+        },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.wake?.physics_mode).toBe("kelvin");
+    });
+    expectPostedWake(fetchMock, {
+      duck_length_m: 0.35,
+      swimming_speed_m_s: 3.0,
+      physics_mode: "kelvin",
+    });
+
+    rerender({
+      values: { duckLengthM: 0.35, speedMS: 3.0, physicsMode: "advanced" },
+    });
+
+    await waitFor(() => {
+      expect(result.current.wake?.physics_mode).toBe("advanced");
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expectPostedWake(fetchMock, {
+      duck_length_m: 0.35,
+      swimming_speed_m_s: 3.0,
+      physics_mode: "advanced",
+    });
+  });
+
+  it("aborts the in-flight request and ignores its stale response when the mode changes", async () => {
+    vi.useFakeTimers();
+
+    const signals: AbortSignal[] = [];
+    let resolveFirst: ((value: unknown) => void) | undefined;
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((_url: unknown, init?: RequestInit) => {
+        if (init?.signal) {
+          signals.push(init.signal);
+        }
+        if (fetchMock.mock.calls.length === 1) {
+          // Ignores abort and resolves late, simulating a stale response.
+          return new Promise((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+        return Promise.resolve(mockJsonResponse(makeAdvancedWakeResponse()));
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ values }: { values: WakeControlValues }) => useWakeQuery(values),
+      {
+        initialProps: {
+          values: {
+            duckLengthM: 0.35,
+            speedMS: 3.0,
+            physicsMode: "kelvin",
+          } as WakeControlValues,
+        },
+      },
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    rerender({
+      values: { duckLengthM: 0.35, speedMS: 3.0, physicsMode: "advanced" },
+    });
+    expect(signals[0]?.aborted).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.wake?.physics_mode).toBe("advanced");
+
+    // Late Kelvin response must not overwrite the newer advanced result.
+    await act(async () => {
+      resolveFirst?.(mockJsonResponse(makeWakeResponse()));
+      await Promise.resolve();
+    });
+    expect(result.current.wake?.physics_mode).toBe("advanced");
   });
 });

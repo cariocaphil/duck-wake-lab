@@ -16,7 +16,8 @@ export interface WakeQueryState {
 function sameRequest(a: WakeRequest, b: WakeRequest): boolean {
   return (
     a.duck_length_m === b.duck_length_m &&
-    a.swimming_speed_m_s === b.swimming_speed_m_s
+    a.swimming_speed_m_s === b.swimming_speed_m_s &&
+    a.physics_mode === b.physics_mode
   );
 }
 
@@ -34,6 +35,7 @@ function toErrorMessage(err: unknown): string {
 export function useWakeQuery({
   duckLengthM,
   speedMS,
+  physicsMode,
 }: WakeControlValues): WakeQueryState {
   const [wake, setWake] = useState<WakeResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,7 @@ export function useWakeQuery({
   const latestRequestRef = useRef<WakeRequest>({
     duck_length_m: duckLengthM,
     swimming_speed_m_s: speedMS,
+    physics_mode: physicsMode,
   });
   const hasSucceededRef = useRef(false);
 
@@ -50,6 +53,7 @@ export function useWakeQuery({
     const request: WakeRequest = {
       duck_length_m: duckLengthM,
       swimming_speed_m_s: speedMS,
+      physics_mode: physicsMode,
     };
     latestRequestRef.current = request;
 
@@ -98,7 +102,7 @@ export function useWakeQuery({
       abortRef.current?.abort();
       abortRef.current = null;
     };
-  }, [duckLengthM, speedMS]);
+  }, [duckLengthM, speedMS, physicsMode]);
 
   return {
     wake,

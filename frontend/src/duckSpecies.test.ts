@@ -3,6 +3,7 @@ import {
   DEFAULT_DUCK_SPECIES,
   DUCK_SPECIES_IDS,
   DUCK_SPECIES_PRESETS,
+  isCustomLength,
   isDuckSpecies,
 } from "./duckSpecies";
 import { PARAMETER_RANGES } from "./types";
@@ -44,5 +45,14 @@ describe("duck species presets", () => {
     expect(isDuckSpecies("teal")).toBe(true);
     expect(isDuckSpecies("goose")).toBe(false);
     expect(isDuckSpecies("toString")).toBe(false);
+  });
+
+  it("detects a custom length relative to the species preset", () => {
+    expect(isCustomLength("mallard", 0.55)).toBe(false);
+    expect(isCustomLength("mallard", 0.9)).toBe(true);
+    expect(isCustomLength("teal", 0.55)).toBe(true);
+    // Float noise below the 0.01 m slider step is not "custom".
+    expect(isCustomLength("mallard", 0.55 + 1e-9)).toBe(false);
+    expect(isCustomLength("mallard", 0.56)).toBe(true);
   });
 });
