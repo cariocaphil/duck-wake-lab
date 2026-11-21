@@ -49,16 +49,194 @@ describe("App", () => {
       mockWakeFetch();
       render(<App />);
 
-      expect(screen.getByLabelText("Duck length")).toHaveValue("0.5");
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.55");
       expect(screen.getByLabelText("Swimming speed")).toHaveValue("1.2");
       expect(screen.getByTestId("param-body-length")).toHaveTextContent(
-        "0.50 m",
+        "0.55 m",
       );
       expect(screen.getByTestId("param-speed")).toHaveTextContent("1.20 m/s");
 
       await waitFor(() => {
         expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("species presets", () => {
+    function selectSpecies(value: string) {
+      fireEvent.change(screen.getByLabelText("Duck species"), {
+        target: { value },
+      });
+    }
+
+    it("starts with Mallard selected at 0.55 m", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      expect(screen.getByLabelText("Duck species")).toHaveValue("mallard");
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.55");
+      expect(screen.getByTestId("param-species")).toHaveTextContent("Mallard");
+      expect(screen.getByTestId("param-body-length")).toHaveTextContent(
+        "0.55 m",
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+
+    it("selecting Teal sets the length to 0.35 m", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      selectSpecies("teal");
+
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.35");
+      expect(screen.getByText("Duck length (0.35 m)")).toBeInTheDocument();
+      expect(screen.getByTestId("param-species")).toHaveTextContent("Teal");
+      expect(screen.getByTestId("param-body-length")).toHaveTextContent(
+        "0.35 m",
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+
+    it("selecting Muscovy sets the length to 0.75 m", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      selectSpecies("muscovy");
+
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.75");
+      expect(screen.getByTestId("param-species")).toHaveTextContent("Muscovy");
+      expect(screen.getByTestId("param-body-length")).toHaveTextContent(
+        "0.75 m",
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+
+    it("preserves swimming speed when the species changes", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      fireEvent.change(screen.getByLabelText("Swimming speed"), {
+        target: { value: "2.0" },
+      });
+      selectSpecies("teal");
+
+      expect(screen.getByLabelText("Swimming speed")).toHaveValue("2");
+      expect(screen.getByTestId("param-speed")).toHaveTextContent("2.00 m/s");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+
+    it("keeps the selected species when the length is changed manually", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      fireEvent.change(screen.getByLabelText("Duck length"), {
+        target: { value: "0.62" },
+      });
+
+      expect(screen.getByLabelText("Duck species")).toHaveValue("mallard");
+      expect(screen.getByTestId("param-species")).toHaveTextContent("Mallard");
+      expect(screen.getByTestId("param-body-length")).toHaveTextContent(
+        "0.62 m",
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+
+    it("applies the new preset when a species is selected after a manual override", async () => {
+      mockWakeFetch();
+      render(<App />);
+
+      fireEvent.change(screen.getByLabelText("Duck length"), {
+        target: { value: "0.62" },
+      });
+      selectSpecies("muscovy");
+
+      expect(screen.getByLabelText("Duck length")).toHaveValue("0.75");
+      expect(screen.getByTestId("param-body-length")).toHaveTextContent(
+        "0.75 m",
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toBeInTheDocument();
+      });
+    });
+
+    it("requests a new wake with the preset length and unchanged speed", async () => {
+      const fetchMock = mockWakeFetch();
+      render(<App />);
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalled();
+      });
+
+      selectSpecies("teal");
+
+      await waitFor(() => {
+        expectPostedWake(
+          fetchMock,
+          { duck_length_m: 0.35, swimming_speed_m_s: 1.2 },
+          -1,
+        );
+      });
+    });
+
+    it("requests a new wake after a manual length change", async () => {
+      const fetchMock = mockWakeFetch();
+      render(<App />);
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalled();
+      });
+
+      fireEvent.change(screen.getByLabelText("Duck length"), {
+        target: { value: "0.62" },
+      });
+
+      await waitFor(() => {
+        expectPostedWake(
+          fetchMock,
+          { duck_length_m: 0.62, swimming_speed_m_s: 1.2 },
+          -1,
+        );
+      });
+    });
+
+    it("displays the Froude number from the latest API response", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          mockJsonResponse(makeWakeResponse({ froude_number: 0.541 })),
+        )
+        .mockResolvedValueOnce(
+          mockJsonResponse(makeWakeResponse({ froude_number: 0.9 })),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toHaveTextContent("0.541");
+      });
+
+      selectSpecies("teal");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("wake-froude")).toHaveTextContent("0.900");
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 

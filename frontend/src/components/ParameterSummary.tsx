@@ -1,16 +1,28 @@
 import type { WakeResponse } from "../api/wakeClient";
+import { DUCK_SPECIES_PRESETS, type DuckSpecies } from "../duckSpecies";
 import type { WakeControlValues } from "../types";
 
 interface ParameterSummaryProps {
+  species: DuckSpecies;
   values: WakeControlValues;
   wake: WakeResponse | null;
 }
 
-export function ParameterSummary({ values, wake }: ParameterSummaryProps) {
+export function ParameterSummary({
+  species,
+  values,
+  wake,
+}: ParameterSummaryProps) {
   return (
     <aside className="parameter-summary" aria-label="Selected parameters">
       <h2>Selected parameters</h2>
       <dl>
+        <div>
+          <dt>Duck species</dt>
+          <dd data-testid="param-species">
+            {DUCK_SPECIES_PRESETS[species].label}
+          </dd>
+        </div>
         <div>
           <dt>Duck length</dt>
           <dd data-testid="param-body-length">
