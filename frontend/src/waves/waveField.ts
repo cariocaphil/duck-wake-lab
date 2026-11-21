@@ -142,3 +142,33 @@ export function waveViewBox(wave: WaveFieldResponse): string {
   const pad = (xMax - xMin) * 0.06;
   return `${xMin} ${-yHalf} ${xMax - xMin + pad} ${2 * yHalf}`;
 }
+
+/**
+ * SVG path of world-fixed reference dots (round caps on zero-length
+ * segments) at multiples of `spacingM`, covering the given camera-relative
+ * extent plus one cell of margin on every side. Translate the path by
+ * `-waterMarkOffsetM(distance, spacing)` in x to scroll it with the camera.
+ * `y` is already in SVG orientation (physics y negated), and the pattern is
+ * symmetric about y = 0.
+ */
+export function waterMarksPath(
+  xMinM: number,
+  xMaxM: number,
+  yHalfM: number,
+  spacingM: number,
+): string {
+  if (!(spacingM > 0)) {
+    return "";
+  }
+  const kMin = Math.floor(xMinM / spacingM) - 1;
+  const kMax = Math.ceil(xMaxM / spacingM) + 1;
+  const jMax = Math.ceil(yHalfM / spacingM);
+  const parts: string[] = [];
+  for (let j = -jMax; j <= jMax; j += 1) {
+    for (let k = kMin; k <= kMax; k += 1) {
+      parts.push(`M${k * spacingM} ${j * spacingM}h0`);
+    }
+  }
+  return parts.join("");
+}
+

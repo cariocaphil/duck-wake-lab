@@ -12,6 +12,7 @@ import {
   isWaveFamily,
   kelvinBoundaries,
   selectField,
+  waterMarksPath,
   waveViewBox,
 } from "./waveField";
 
@@ -140,5 +141,20 @@ describe("overlay geometry", () => {
     expect(y).toBeCloseTo(-1.4, 10);
     expect(h).toBeCloseTo(2.8, 10);
     expect((x ?? 0) + (w ?? 0)).toBeGreaterThan(0);
+  });
+});
+
+describe("waterMarksPath", () => {
+  it("is empty for a non-positive spacing", () => {
+    expect(waterMarksPath(-4, 0, 1, 0)).toBe("");
+  });
+
+  it("places dots at multiples of the spacing around the extent", () => {
+    const path = waterMarksPath(-1, 0, 0.5, 0.5);
+    expect(path).toContain("M-0.5 0h0");
+    expect(path).toContain("M0 0h0");
+    // Includes one cell of margin so scrolling never reveals an edge.
+    expect(path).toContain("M-1.5 0h0");
+    expect(path).toContain("M0.5 0h0");
   });
 });

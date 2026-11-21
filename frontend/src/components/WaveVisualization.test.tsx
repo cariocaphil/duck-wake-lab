@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WaveVisualization } from "./WaveVisualization";
 import { CREST_RGB } from "../waves/waveField";
-import { makeWaveFieldResponse } from "../test/wakeFixtures";
+import {
+  installFakeFrames,
+  stubReducedMotion,
+  type FakeFrames,
+} from "../test/animationFrames";
+import {
+  makeWaveFieldResponse,
+} from "../test/wakeFixtures";
 
 const originalGetContext = HTMLCanvasElement.prototype.getContext;
 let frames: Uint8ClampedArray[] = [];
@@ -181,11 +188,205 @@ describe("WaveVisualization", () => {
     expect(explanation).toHaveTextContent(/cancel/i);
     expect(explanation).toHaveTextContent(/Kelvin angle/i);
     expect(explanation).toHaveTextContent(/not the direction of the individual wave crests/i);
+    expect(explanation).toHaveTextContent(/stationary relative to the duck/i);
+    expect(explanation).toHaveTextContent(/traveling-phase/i);
     expect(screen.getByTestId("wave-model-label")).toHaveTextContent(
       /illustrative interference model/i,
     );
     expect(screen.getByTestId("wave-model-label")).toHaveTextContent(
       /not a physically exact duck wake/i,
     );
+    expect(screen.getByTestId("wave-model-label")).toHaveTextContent(
+      /steady in the duck/i,
+    );
+  });
+});
+
+
+describe("WaveVisualization animation", () => {
+  let fake: FakeFrames;
+
+  beforeEach(() => {
+    fake = installFakeFrames();
+  });
+
+  afterEach(() => {
+    fake.restore();
+  });
+
+  /** Camera-relative x offset of the world-fixed water marks. */
+  function markOffset(): number {
+    const transform =
+      screen.getByTestId("wave-water-marks").getAttribute("transform") ?? "";
+    const match = /translate\((-?[\d.e-]+) 0\)/.exec(transform);
+    return match ? Number(match[1]) : Number.NaN;
+  }
+
+  /** Flush frames covering `ms` of real time; returns the last timestamp. */
+  function play(ms: number, startMs = 0, stepMs = 1000 / 60): number {
+    let now = startMs;
+    act(() => fake.flush(now)); // baseline frame
+    const count = Math.round(ms / stepMs);
+    for (let i = 0; i < count; i += 1) {
+      now += stepMs;
+      act(() => fake.flush(now));
+    }
+    return now;
+  }
+
+  function renderAnimated(wave = makeWaveFieldResponse()) {
+    return render(
+      <WaveVisualization waveField={wave} loading={false} error={null} />,
+    );
+  }
+
+  it("shows a true-scale duck that stays at the camera origin", () => {
+    renderAnimated();
+    const duck = screen.getByTestId("wave-duck");
+    expect(duck).toHaveAttribute("transform", "scale(0.55)");
+    expect(duck).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("wave-svg")).toHaveAccessibleName(
+      /behind the swimming duck/i,
+    );
+    play(500);
+    // The duck (and wake) never move in camera space.
+    expect(screen.getByTestId("wave-duck")).toHaveAttribute("transform", "scale(0.55)");
+  });
+
+  it("keeps canvas pixels unchanged while playing (steady wake)", () => {
+    renderAnimated();
+    const initial = frames.at(-1);
+    expect(initial).toBeDefined();
+    play(500);
+    // Canvas is painted once from the static field; marks/feet move instead.
+    expect(frames.at(-1)).toEqual(initial);
+    expect(frames).toHaveLength(1);
+  });
+
+  it("scrolls the world marks by the distance swum", () => {
+    renderAnimated(makeWaveFieldResponse({ swimming_speed_m_s: 1.2 }));
+    expect(markOffset()).toBeCloseTo(0, 9);
+    play(500);
+    // 1.2 m/s over ~0.5 s = 0.6 m; marks are 2 x 0.55 m apart.
+    expect(markOffset()).toBeCloseTo(-0.6, 1);
+  });
+
+  it("does not translate at zero swimming speed", () => {
+    renderAnimated(makeWaveFieldResponse({ swimming_speed_m_s: 0 }));
+    const initial = frames.at(-1);
+    play(500);
+    expect(markOffset()).toBeCloseTo(0, 9);
+    expect(frames.at(-1)).toEqual(initial);
+  });
+
+  it("scales playback with the animation speed without changing physics", () => {
+    renderAnimated();
+    fireEvent.click(screen.getByRole("radio", { name: "2×" }));
+    play(250);
+    const doubled = markOffset();
+    expect(doubled).toBeCloseTo(-0.6, 1); // 2x of 0.3 m
+    expect(screen.getByTestId("animation-hint")).toHaveTextContent("1.20 m/s");
+  });
+
+  it("pauses both duck movement and wave propagation, then resumes", () => {
+    renderAnimated();
+    const now = play(300);
+    fireEvent.click(screen.getByRole("button", { name: "Pause animation" }));
+    expect(fake.pending()).toBe(0);
+    const frozenOffset = markOffset();
+    const frozenFrame = frames.at(-1);
+
+    act(() => fake.flush(now + 5000));
+    expect(markOffset()).toBe(frozenOffset);
+    expect(frames.at(-1)).toEqual(frozenFrame);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play animation" }));
+    play(200, now + 5000);
+    expect(markOffset()).not.toBe(frozenOffset);
+  });
+
+  it("reset returns the duck and waves to their initial state", () => {
+    renderAnimated();
+    const initialFrame = frames.at(-1);
+    play(400);
+    expect(markOffset()).not.toBeCloseTo(0, 3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset animation" }));
+    expect(markOffset()).toBeCloseTo(0, 9);
+    expect(frames.at(-1)).toEqual(initialFrame);
+    // Reset does not touch the wave family or playback speed.
+    expect(screen.getByRole("radio", { name: "Both" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "1×" })).toBeChecked();
+  });
+
+  it("repaints while paused when the family changes, without advancing time", () => {
+    renderAnimated();
+    play(300);
+    fireEvent.click(screen.getByRole("button", { name: "Pause animation" }));
+    const offset = markOffset();
+    const before = frames.length;
+    fireEvent.click(screen.getByRole("radio", { name: "Transverse" }));
+    expect(frames.length).toBeGreaterThan(before);
+    expect(markOffset()).toBe(offset);
+  });
+
+  it("keeps time and distance when new physics arrives mid-swim", () => {
+    const { rerender } = renderAnimated();
+    play(300);
+    const before = markOffset();
+    rerender(
+      <WaveVisualization
+        waveField={makeWaveFieldResponse({
+          duck_length_m: 0.55,
+          swimming_speed_m_s: 1.8,
+        })}
+        loading={false}
+        error={null}
+      />,
+    );
+    // The accumulated distance is preserved (no snap back to zero).
+    expect(markOffset()).toBeCloseTo(before, 9);
+  });
+
+  it("starts paused when reduced motion is requested and plays on demand", () => {
+    fake.restore();
+    fake = installFakeFrames();
+    stubReducedMotion(true);
+    renderAnimated();
+    expect(fake.pending()).toBe(0);
+    expect(screen.getByRole("button", { name: "Play animation" })).toBeInTheDocument();
+    expect(screen.getByTestId("animation-reduced-motion")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play animation" }));
+    play(300);
+    expect(markOffset()).not.toBeCloseTo(0, 3);
+  });
+
+  it("cancels its animation frame on unmount", () => {
+    const { unmount } = renderAnimated();
+    expect(fake.pending()).toBe(1);
+    unmount();
+    expect(fake.pending()).toBe(0);
+  });
+
+  it("makes no network requests while animating or using the controls", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    renderAnimated();
+    play(500);
+    fireEvent.click(screen.getByRole("button", { name: "Pause animation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Play animation" }));
+    fireEvent.click(screen.getByRole("radio", { name: "0.5×" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset animation" }));
+    play(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not animate before the first response", () => {
+    render(<WaveVisualization waveField={null} loading={true} error={null} />);
+    act(() => fake.flush(0));
+    act(() => fake.flush(16));
+    expect(frames).toHaveLength(0);
+    expect(screen.getByTestId("animation-controls")).toBeInTheDocument();
   });
 });
