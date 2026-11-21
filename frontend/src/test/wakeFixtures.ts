@@ -1,5 +1,12 @@
-import type { Point2D, WakeResponse } from "../api/wakeClient";
-import { WakeResponse as WakeResponseSchema } from "../api/generated/client";
+import type {
+  Point2D,
+  WakeResponse,
+  WaveFieldResponse,
+} from "../api/wakeClient";
+import {
+  WakeResponse as WakeResponseSchema,
+  WaveFieldResponse as WaveFieldResponseSchema,
+} from "../api/generated/client";
 
 export function point(x_m: number, y_m: number): Point2D {
   return { x_m, y_m };
@@ -45,6 +52,51 @@ export function makeAdvancedWakeResponse(
   });
 }
 
+/**
+ * Tiny deterministic wave field (5 x 3 grid). The divergent field is weaker
+ * than the transverse one, and the combined field is their sum, so shared
+ * color-scale behaviour is easy to assert.
+ */
+export function makeWaveFieldResponse(
+  overrides: Partial<WaveFieldResponse> = {},
+): WaveFieldResponse {
+  const transverse = [
+    [0.2, -0.4, 0.6, -0.2, 0],
+    [0.4, -0.8, 1.0, -0.4, 0],
+    [0.2, -0.4, 0.6, -0.2, 0],
+  ];
+  const divergent = [
+    [0.1, 0.1, -0.1, 0.1, 0],
+    [0.2, -0.2, 0.2, -0.2, 0],
+    [0.1, 0.1, -0.1, 0.1, 0],
+  ];
+  const combined = transverse.map((row, j) =>
+    row.map((value, i) => Math.round((value + (divergent[j]?.[i] ?? 0)) * 1e4) / 1e4),
+  );
+  return {
+    duck_length_m: 0.55,
+    swimming_speed_m_s: 1.2,
+    froude_number: 0.516,
+    kelvin_angle_deg: KELVIN_DEG,
+    wake_length_m: 4,
+    transverse_wavelength_m: 1.1,
+    divergent_wavelength_m: 0.55,
+    nx: 5,
+    ny: 3,
+    x_m: [-4, -3, -2, -1, 0],
+    y_m: [-1.4, 0, 1.4],
+    transverse,
+    divergent,
+    combined,
+    ...overrides,
+  };
+}
+
+/** Assert a wave-field fixture matches the generated Zod schema. */
+export function assertWaveFieldResponseSchema(value: unknown): WaveFieldResponse {
+  return WaveFieldResponseSchema.parse(value);
+}
+
 /** Assert a fixture matches the generated Zod WakeResponse schema. */
 export function assertWakeResponseSchema(value: unknown): WakeResponse {
   return WakeResponseSchema.parse(value);
@@ -75,6 +127,29 @@ export function mockJsonResponse(
     text: async () => JSON.stringify(body),
     arrayBuffer: async () => new ArrayBuffer(0),
   };
+}
+
+type FetchLike = (url: unknown, init?: RequestInit) => unknown;
+
+/**
+ * Stub global fetch so wake requests go to `wakeFetch` and wave-field
+ * requests go to a separate mock. Page-level tests can then keep asserting on
+ * the wake mock only. Returns the wave-field mock.
+ */
+export function stubRoutedFetch(
+  wakeFetch: FetchLike,
+  waveFetch: FetchLike = vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve(mockJsonResponse(makeWaveFieldResponse())),
+    ),
+) {
+  vi.stubGlobal("fetch", (url: unknown, init?: RequestInit) =>
+    String(url).endsWith("/api/wave-field")
+      ? waveFetch(url, init)
+      : wakeFetch(url, init),
+  );
+  return waveFetch;
 }
 
 export function expectPostedWake(

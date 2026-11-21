@@ -1,13 +1,20 @@
-import { ZodError } from "zod";
 import { createApi } from "./generated/api.client";
 import {
   TypedStatusError,
   type Point2D,
   type WakeRequest,
   type WakeResponse,
+  type WaveFieldRequest,
+  type WaveFieldResponse,
 } from "./generated/client";
 
-export type { Point2D, WakeRequest, WakeResponse };
+export type {
+  Point2D,
+  WakeRequest,
+  WakeResponse,
+  WaveFieldRequest,
+  WaveFieldResponse,
+};
 
 export class WakeApiError extends Error {
   readonly status: number;
@@ -32,6 +39,44 @@ function apiBaseUrl(): string {
 
 const api = createApi(apiBaseUrl());
 
+function isAbort(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
+/**
+ * Map a failed request to a WakeApiError. Aborts are rethrown untouched so
+ * query hooks can ignore cancelled requests.
+ */
+function toApiError(
+  err: unknown,
+  requestLabel: string,
+  responseLabel: string,
+): unknown {
+  if (isAbort(err)) {
+    return err;
+  }
+
+  if (err instanceof TypedStatusError) {
+    let detail = `${requestLabel} failed (${err.status})`;
+    const body: unknown = err.response.data;
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "detail" in body &&
+      body.detail !== undefined
+    ) {
+      detail = `${requestLabel} failed (${err.status}): ${JSON.stringify(body.detail)}`;
+    }
+    return new WakeApiError(detail, err.status);
+  }
+
+  // Distinct from HTTP failures: Zod/schema error after a successful status.
+  return new WakeApiError(`Invalid ${responseLabel} response`, 200);
+}
+
 /**
  * Fetch Kelvin wake geometry from the FastAPI backend via the generated client.
  */
@@ -46,33 +91,25 @@ export async function fetchWake(
       throwOnStatusError: true,
     });
   } catch (err) {
-    // Let abort propagate so useWakeQuery can ignore cancelled requests.
-    if (
-      (err instanceof DOMException && err.name === "AbortError") ||
-      (err instanceof Error && err.name === "AbortError")
-    ) {
-      throw err;
-    }
+    throw toApiError(err, "Wake request", "wake");
+  }
+}
 
-    if (err instanceof TypedStatusError) {
-      let detail = `Wake request failed (${err.status})`;
-      const body: unknown = err.response.data;
-      if (
-        typeof body === "object" &&
-        body !== null &&
-        "detail" in body &&
-        body.detail !== undefined
-      ) {
-        detail = `Wake request failed (${err.status}): ${JSON.stringify(body.detail)}`;
-      }
-      throw new WakeApiError(detail, err.status);
-    }
-
-    // Distinct from HTTP failures: Zod/schema error after a successful status.
-    if (err instanceof ZodError) {
-      throw new WakeApiError("Invalid wake response", 200);
-    }
-
-    throw new WakeApiError("Invalid wake response", 200);
+/**
+ * Fetch the illustrative wave-interference field. Depends only on duck
+ * length and swimming speed.
+ */
+export async function fetchWaveField(
+  request: WaveFieldRequest,
+  signal?: AbortSignal,
+): Promise<WaveFieldResponse> {
+  try {
+    return await api.post("/api/wave-field", {
+      body: request,
+      overrides: { signal },
+      throwOnStatusError: true,
+    });
+  } catch (err) {
+    throw toApiError(err, "Wave-field request", "wave-field");
   }
 }

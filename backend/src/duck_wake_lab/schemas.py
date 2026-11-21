@@ -22,13 +22,13 @@ class Point2D(BaseModel):
     y_m: float = Field(allow_inf_nan=False)
 
 
-class WakeRequest(BaseModel):
-    """Parameters for computing wake geometry.
+class DuckMotionRequest(BaseModel):
+    """Duck length and swimming speed shared by all wake-related requests.
 
     API contract bounds are ``duck_length_m > 0`` and
     ``swimming_speed_m_s >= 0``. Slider UX ranges live in
     ``shared/wake-parameter-ranges.json`` and are not enforced here.
-    Physics uses ``body_length_m`` / ``speed_m_s``; ``wake_service`` maps
+    Physics uses ``body_length_m`` / ``speed_m_s``; the service layer maps
     these API fields.
     """
 
@@ -47,6 +47,11 @@ class WakeRequest(BaseModel):
         allow_inf_nan=False,
         description="Swimming speed in meters per second.",
     )
+
+
+class WakeRequest(DuckMotionRequest):
+    """Parameters for computing wake geometry."""
+
     physics_mode: PhysicsModeValue = Field(
         default=PhysicsMode.KELVIN,
         description=(
@@ -111,4 +116,74 @@ class WakeResponse(BaseModel):
         if any(arm[0].x_m != 0.0 or arm[0].y_m != 0.0 for arm in arms.values()):
             raise ValueError("wake arms must start at the origin (0, 0)")
 
+        return self
+
+
+class WaveFieldRequest(DuckMotionRequest):
+    """Parameters for the illustrative wave-interference field.
+
+    Same validation as :class:`WakeRequest` but without ``physics_mode``:
+    the field depends only on duck length and swimming speed.
+    """
+
+
+class WaveFieldResponse(BaseModel):
+    """Gridded transverse/divergent/combined displacement (illustrative).
+
+    ``transverse``, ``divergent`` and ``combined`` are ``ny`` rows of ``nx``
+    values (row = y index, column = x index) in arbitrary dimensionless
+    units. ``combined`` equals ``transverse + divergent`` (within float
+    tolerance). This is an illustrative interference model, not a physically
+    exact duck wake.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    duck_length_m: float = Field(allow_inf_nan=False)
+    swimming_speed_m_s: float = Field(allow_inf_nan=False)
+    froude_number: float = Field(allow_inf_nan=False)
+    kelvin_angle_deg: float = Field(
+        allow_inf_nan=False,
+        description="Kelvin envelope half-angle in degrees; fixed reference.",
+    )
+    wake_length_m: float = Field(allow_inf_nan=False)
+    transverse_wavelength_m: float = Field(
+        allow_inf_nan=False,
+        description="Illustrative transverse wavelength rule L * (1 + 2 Fr).",
+    )
+    divergent_wavelength_m: float = Field(
+        allow_inf_nan=False,
+        description="Illustrative divergent wavelength (fraction of transverse).",
+    )
+    nx: int = Field(ge=2)
+    ny: int = Field(ge=3)
+    x_m: list[float] = Field(description="Grid x coordinates (m), -wake_length..0.")
+    y_m: list[float] = Field(description="Grid y coordinates (m), symmetric about 0.")
+    transverse: list[list[float]] = Field(
+        description="Transverse displacement, [ny][nx], arbitrary units."
+    )
+    divergent: list[list[float]] = Field(
+        description="Divergent displacement, [ny][nx], arbitrary units."
+    )
+    combined: list[list[float]] = Field(
+        description="Transverse plus divergent displacement, [ny][nx]."
+    )
+
+    @model_validator(mode="after")
+    def validate_grid_contract(self) -> Self:
+        """Ensure coordinate/field shapes agree and every value is finite."""
+        if len(self.x_m) != self.nx or len(self.y_m) != self.ny:
+            raise ValueError("x_m/y_m lengths must match nx/ny")
+        if not all(math.isfinite(v) for v in (*self.x_m, *self.y_m)):
+            raise ValueError("grid coordinates must be finite")
+        fields = {
+            "transverse": self.transverse,
+            "divergent": self.divergent,
+            "combined": self.combined,
+        }
+        for name, grid in fields.items():
+            if len(grid) != self.ny or any(len(row) != self.nx for row in grid):
+                raise ValueError(f"{name} must have shape [ny][nx]")
+            if any(not math.isfinite(v) for row in grid for v in row):
+                raise ValueError(f"{name} must contain only finite numbers")
         return self

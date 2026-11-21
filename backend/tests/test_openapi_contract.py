@@ -75,24 +75,39 @@ def _resolve_ref(schema: dict[str, Any], ref: str) -> dict[str, Any]:
     return node
 
 
+WAKE_SCHEMA_NAMES = (
+    "WakeRequest",
+    "WakeResponse",
+    "Point2D",
+    "HTTPValidationError",
+    "ValidationError",
+)
+WAVE_FIELD_SCHEMA_NAMES = (
+    "WaveFieldRequest",
+    "WaveFieldResponse",
+    "HTTPValidationError",
+    "ValidationError",
+)
+
+
 def _wake_operation_and_schemas(spec: dict[str, Any]) -> dict[str, Any]:
     """Extract the wake POST operation and related component schemas."""
+    return _operation_and_schemas(spec, "/api/wake", WAKE_SCHEMA_NAMES)
+
+
+def _operation_and_schemas(
+    spec: dict[str, Any], path: str, relevant_names: tuple[str, ...]
+) -> dict[str, Any]:
+    """Extract a POST operation and the named component schemas."""
     paths = spec["paths"]
-    assert "/api/wake" in paths
-    post = paths["/api/wake"]["post"]
+    assert path in paths
+    post = paths[path]["post"]
 
     request_schema = post["requestBody"]["content"]["application/json"]["schema"]
     response_schema = post["responses"]["200"]["content"]["application/json"]["schema"]
     error_schema = post["responses"]["422"]["content"]["application/json"]["schema"]
 
     components = spec.get("components", {}).get("schemas", {})
-    relevant_names = (
-        "WakeRequest",
-        "WakeResponse",
-        "Point2D",
-        "HTTPValidationError",
-        "ValidationError",
-    )
     relevant = {name: components[name] for name in relevant_names if name in components}
 
     return _normalize(
@@ -150,3 +165,26 @@ def test_openapi_contract_matches_fastapi_wake_surface() -> None:
         ):
             if "$ref" in schema:
                 _resolve_ref(spec, schema["$ref"])
+
+
+def test_openapi_contract_matches_fastapi_wave_field_surface() -> None:
+    """Checked-in YAML and FastAPI agree on the wave-field contract shape."""
+    with CONTRACT_PATH.open(encoding="utf-8") as handle:
+        checked_in = yaml.safe_load(handle)
+    runtime = app.openapi()
+
+    checked = _operation_and_schemas(
+        checked_in, "/api/wave-field", WAVE_FIELD_SCHEMA_NAMES
+    )
+    live = _operation_and_schemas(runtime, "/api/wave-field", WAVE_FIELD_SCHEMA_NAMES)
+
+    assert checked["request"] == live["request"]
+    assert checked["response"] == live["response"]
+    assert checked["error"] == live["error"]
+    for name in ("WaveFieldRequest", "WaveFieldResponse"):
+        assert name in checked["schemas"]
+        assert checked["schemas"][name] == live["schemas"][name]
+
+    # The wave-field request has no physics_mode: it depends only on length/speed.
+    request_props = checked["schemas"]["WaveFieldRequest"]["properties"]
+    assert set(request_props) == {"duck_length_m", "swimming_speed_m_s"}
