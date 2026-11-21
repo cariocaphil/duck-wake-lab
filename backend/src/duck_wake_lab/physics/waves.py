@@ -41,6 +41,24 @@ Because every length above is a multiple of the duck length ``L`` and
 ``lambda = L * f(Fr)``, the pattern expressed in duck lengths depends only on
 the Froude number: species change the scale, not the look, at equal ``Fr``.
 
+Animation support (quadrature)
+------------------------------
+Each family is ``A * cos(phi)``. The field also returns the quadrature
+component ``A * sin(phi)`` so a client can evolve the phase in time without
+recovering ``phi`` (which ``cos`` alone cannot give)::
+
+    A * cos(phi - omega * t) = A cos(phi) * cos(omega t) + A sin(phi) * sin(omega t)
+
+At ``t = 0`` this reproduces the static field exactly. ``omega`` per family
+comes from the deep-water dispersion relation ``omega = sqrt(g * k)`` with
+``k = 2 * pi / lambda``. This is an **animated dispersion-based
+approximation, not a strictly steady Kelvin wake**: in an exactly steady
+wake the crests are stationary in the duck's frame, whereas here they drift
+astern at roughly ``omega / k`` so wave propagation is visible. That rate is
+not derived from the duck speed (the compressed wavelength rule above does
+not satisfy the steady-wake condition) and the resulting crest motion must
+not be read as physically exact.
+
 The model is deterministic (no random phases) and exactly mirror-symmetric
 about the swimming axis: it depends on ``y`` only through ``y**2``.
 """
@@ -52,7 +70,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from duck_wake_lab.physics.froude import froude_number
+from duck_wake_lab.physics.froude import GRAVITY_M_S2, froude_number
 from duck_wake_lab.physics.kelvin import KELVIN_HALF_ANGLE_RAD
 from duck_wake_lab.physics.parameters import DuckParameters
 
@@ -97,6 +115,11 @@ class WaveField:
     ``transverse``, ``divergent`` and ``combined`` have shape
     ``(len(y_m), len(x_m))`` (row = y index, column = x index) in arbitrary
     dimensionless units. ``combined`` equals ``transverse + divergent``.
+    ``transverse_quadrature`` / ``divergent_quadrature`` hold ``A * sin(phi)``
+    for the same envelopes (``A * cos(phi)`` is the matching field above).
+    ``*_omega_rad_s`` is the illustrative deep-water angular frequency of
+    each family (see the module docstring).
+
     NumPy arrays remain mutable in place; callers should copy to isolate.
     """
 
@@ -108,6 +131,20 @@ class WaveField:
     froude_number: float
     transverse_wavelength_m: float
     divergent_wavelength_m: float
+    transverse_quadrature: np.ndarray
+    divergent_quadrature: np.ndarray
+    transverse_omega_rad_s: float
+    divergent_omega_rad_s: float
+
+
+def deep_water_angular_frequency(wavelength_m: float) -> float:
+    """Deep-water angular frequency ``sqrt(g * k)`` with ``k = 2 * pi / lambda``.
+
+    Used only to animate the illustrative field (visual approximation).
+    """
+    if not math.isfinite(wavelength_m) or wavelength_m <= 0:
+        raise ValueError("wavelength_m must be a finite number greater than 0")
+    return math.sqrt(GRAVITY_M_S2 * 2.0 * math.pi / wavelength_m)
 
 
 def transverse_wavelength_m(params: DuckParameters) -> float:
@@ -160,6 +197,8 @@ def wave_field(
     fr = froude_number(params)
     lambda_t_m = transverse_wavelength_m(params)
     lambda_d_m = divergent_wavelength_m(params)
+    omega_t = deep_water_angular_frequency(lambda_t_m)
+    omega_d = deep_water_angular_frequency(lambda_d_m)
 
     half_width_m = (
         WAVE_GRID_HALF_WIDTH_MARGIN * wake_length_m * math.tan(KELVIN_HALF_ANGLE_RAD)
@@ -180,6 +219,10 @@ def wave_field(
             froude_number=fr,
             transverse_wavelength_m=lambda_t_m,
             divergent_wavelength_m=lambda_d_m,
+            transverse_quadrature=zeros.copy(),
+            divergent_quadrature=zeros.copy(),
+            transverse_omega_rad_s=omega_t,
+            divergent_omega_rad_s=omega_d,
         )
 
     # Normalized coordinates in duck lengths; the pattern depends only on Fr.
@@ -198,13 +241,9 @@ def wave_field(
     # Transverse: curved crests, phase = k_t * (s + y^2 / (2R)).
     radius = TRANSVERSE_CURVATURE_RADIUS_FACTOR
     phase_t = 2.0 * math.pi / wl_t * (s + y**2 / (2.0 * radius))
-    transverse = (
-        TRANSVERSE_AMPLITUDE
-        * ramp
-        * decay
-        * window(TRANSVERSE_WINDOW_FRACTION)
-        * np.cos(phase_t)
-    )
+    amp_t = TRANSVERSE_AMPLITUDE * ramp * decay * window(TRANSVERSE_WINDOW_FRACTION)
+    transverse = amp_t * np.cos(phase_t)
+    transverse_quadrature = amp_t * np.sin(phase_t)
 
     # Divergent: mirrored oblique wave, phase = k_d * (s cos(psi) + |y| sin(psi)).
     psi = DIVERGENT_PROPAGATION_ANGLE_RAD
@@ -212,13 +251,9 @@ def wave_field(
     phase_d = (
         2.0 * math.pi / wl_d * (s * math.cos(psi) + abs_y * math.sin(psi))
     )
-    divergent = (
-        DIVERGENT_AMPLITUDE
-        * ramp
-        * decay
-        * window(DIVERGENT_WINDOW_FRACTION)
-        * np.cos(phase_d)
-    )
+    amp_d = DIVERGENT_AMPLITUDE * ramp * decay * window(DIVERGENT_WINDOW_FRACTION)
+    divergent = amp_d * np.cos(phase_d)
+    divergent_quadrature = amp_d * np.sin(phase_d)
 
     return WaveField(
         x_m=x_m,
@@ -229,4 +264,8 @@ def wave_field(
         froude_number=fr,
         transverse_wavelength_m=lambda_t_m,
         divergent_wavelength_m=lambda_d_m,
+        transverse_quadrature=transverse_quadrature,
+        divergent_quadrature=divergent_quadrature,
+        transverse_omega_rad_s=omega_t,
+        divergent_omega_rad_s=omega_d,
     )

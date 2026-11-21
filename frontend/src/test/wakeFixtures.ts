@@ -55,7 +55,9 @@ export function makeAdvancedWakeResponse(
 /**
  * Tiny deterministic wave field (5 x 3 grid). The divergent field is weaker
  * than the transverse one, and the combined field is their sum, so shared
- * color-scale behaviour is easy to assert.
+ * color-scale behaviour is easy to assert. The quadrature grids are zero by
+ * default (static picture identical to PR #7); use
+ * `makeAnimatedWaveFieldResponse` when the traveling phase matters.
  */
 export function makeWaveFieldResponse(
   overrides: Partial<WaveFieldResponse> = {},
@@ -81,6 +83,8 @@ export function makeWaveFieldResponse(
     wake_length_m: 4,
     transverse_wavelength_m: 1.1,
     divergent_wavelength_m: 0.55,
+    transverse_omega_rad_s: 7.5,
+    divergent_omega_rad_s: 10.6,
     nx: 5,
     ny: 3,
     x_m: [-4, -3, -2, -1, 0],
@@ -88,8 +92,29 @@ export function makeWaveFieldResponse(
     transverse,
     divergent,
     combined,
+    transverse_quadrature: transverse.map((row) => row.map(() => 0)),
+    divergent_quadrature: divergent.map((row) => row.map(() => 0)),
     ...overrides,
   };
+}
+
+/** Wave field whose quadrature grids are non-zero, so phase visibly matters. */
+export function makeAnimatedWaveFieldResponse(
+  overrides: Partial<WaveFieldResponse> = {},
+): WaveFieldResponse {
+  return makeWaveFieldResponse({
+    transverse_quadrature: [
+      [0.5, 0.3, -0.4, 0.2, 0],
+      [0.9, 0.6, -0.3, 0.4, 0],
+      [0.5, 0.3, -0.4, 0.2, 0],
+    ],
+    divergent_quadrature: [
+      [0.1, -0.1, 0.1, 0.05, 0],
+      [0.2, 0.2, -0.1, 0.2, 0],
+      [0.1, -0.1, 0.1, 0.05, 0],
+    ],
+    ...overrides,
+  });
 }
 
 /** Assert a wave-field fixture matches the generated Zod schema. */

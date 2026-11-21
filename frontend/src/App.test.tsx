@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
@@ -512,9 +518,11 @@ describe("App", () => {
       expect(
         screen.getByRole("region", { name: "Wave pattern visualization" }),
       ).toBeInTheDocument();
-      expect(screen.getAllByRole("radio").map((r) => r.getAttribute("value"))).toEqual(
-        ["transverse", "divergent", "both"],
-      );
+      expect(
+        within(screen.getByTestId("wave-family"))
+          .getAllByRole("radio")
+          .map((r) => r.getAttribute("value")),
+      ).toEqual(["transverse", "divergent", "both"]);
 
       await waitFor(() => {
         expect(screen.getByTestId("wave-svg")).toBeInTheDocument();

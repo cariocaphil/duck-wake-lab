@@ -306,9 +306,122 @@
   opacity: 0.75;
 }
 
+/* Duck sprite: authored in duck-length units, scaled to meters by the group. */
 .wave-duck {
-  vector-effect: non-scaling-stroke;
-  stroke-width: 1.5px;
+  stroke-width: 0.03;
+  stroke-linejoin: round;
+}
+
+.wave-duck .duck-body {
+  fill: #f5c542;
+}
+
+.wave-duck .duck-head {
+  fill: #e9b52c;
+}
+
+.wave-duck .duck-wing {
+  fill: #dca41f;
+}
+
+.wave-duck .duck-tail {
+  fill: #e9b52c;
+}
+
+.wave-duck .duck-beak {
+  fill: #ee7d22;
+}
+
+.wave-duck .duck-foot {
+  fill: #ee7d22;
+}
+
+/* World-fixed reference dots that scroll past the following camera. */
+.wave-water-marks {
+  fill: none;
+  stroke: #1a3a4a;
+  stroke-linecap: round;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.animation-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.5rem;
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #c3d2d9;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.animation-controls > legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+.animation-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.animation-button {
+  min-width: 4.5rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid #1a3a4a;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1a3a4a;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.animation-button:hover {
+  background: #e8f1f4;
+}
+
+.animation-button:focus-visible,
+.animation-speed-option input:focus-visible {
+  outline: 3px solid #2166ac;
+  outline-offset: 2px;
+}
+
+.animation-speed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.animation-speed legend {
+  float: left;
+  margin-right: 0.8rem;
+  padding: 0;
+  font-weight: 600;
+}
+
+.animation-speed-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.animation-controls .control-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-button {
+    transition: none;
+  }
 }
 
 .wave-legend {

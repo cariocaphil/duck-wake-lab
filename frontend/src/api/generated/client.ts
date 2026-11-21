@@ -17,7 +17,7 @@ export type WaveFieldRequest = __TypedOpenapi.Schemas.WaveFieldRequest;
 export const WaveFieldRequest = z.strictObject({ duck_length_m: z.number().gt(0), swimming_speed_m_s: z.number().min(0) });
 
 export type WaveFieldResponse = __TypedOpenapi.Schemas.WaveFieldResponse;
-export const WaveFieldResponse = z.strictObject({ duck_length_m: z.number(), swimming_speed_m_s: z.number(), froude_number: z.number(), kelvin_angle_deg: z.number(), wake_length_m: z.number(), transverse_wavelength_m: z.number(), divergent_wavelength_m: z.number(), nx: z.number().int().min(2), ny: z.number().int().min(3), x_m: z.array(z.number()), y_m: z.array(z.number()), transverse: z.array(z.array(z.number())), divergent: z.array(z.array(z.number())), combined: z.array(z.array(z.number())) });
+export const WaveFieldResponse = z.strictObject({ duck_length_m: z.number(), swimming_speed_m_s: z.number(), froude_number: z.number(), kelvin_angle_deg: z.number(), wake_length_m: z.number(), transverse_wavelength_m: z.number(), divergent_wavelength_m: z.number(), transverse_omega_rad_s: z.number().gt(0), divergent_omega_rad_s: z.number().gt(0), nx: z.number().int().min(2), ny: z.number().int().min(3), x_m: z.array(z.number()), y_m: z.array(z.number()), transverse: z.array(z.array(z.number())), divergent: z.array(z.array(z.number())), combined: z.array(z.array(z.number())), transverse_quadrature: z.array(z.array(z.number())), divergent_quadrature: z.array(z.array(z.number())) });
 
 export type ValidationError = __TypedOpenapi.Schemas.ValidationError;
 export const ValidationError = z.strictObject({ loc: z.array(z.union([z.string(), z.number().int()])), msg: z.string(), type: z.string() });

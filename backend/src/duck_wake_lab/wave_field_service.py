@@ -42,6 +42,12 @@ def compute_wave_field(request: WaveFieldRequest) -> WaveFieldResponse:
     transverse = _quantize(field.transverse, DISPLACEMENT_DECIMALS)
     divergent = _quantize(field.divergent, DISPLACEMENT_DECIMALS)
     combined = _quantize(transverse + divergent, DISPLACEMENT_DECIMALS)
+    transverse_quadrature = _quantize(
+        field.transverse_quadrature, DISPLACEMENT_DECIMALS
+    )
+    divergent_quadrature = _quantize(
+        field.divergent_quadrature, DISPLACEMENT_DECIMALS
+    )
 
     return WaveFieldResponse(
         duck_length_m=request.duck_length_m,
@@ -51,6 +57,8 @@ def compute_wave_field(request: WaveFieldRequest) -> WaveFieldResponse:
         wake_length_m=wake_length_m,
         transverse_wavelength_m=field.transverse_wavelength_m,
         divergent_wavelength_m=field.divergent_wavelength_m,
+        transverse_omega_rad_s=field.transverse_omega_rad_s,
+        divergent_omega_rad_s=field.divergent_omega_rad_s,
         nx=len(field.x_m),
         ny=len(field.y_m),
         x_m=_quantize(field.x_m, COORDINATE_DECIMALS).tolist(),
@@ -58,4 +66,6 @@ def compute_wave_field(request: WaveFieldRequest) -> WaveFieldResponse:
         transverse=transverse.tolist(),
         divergent=divergent.tolist(),
         combined=combined.tolist(),
+        transverse_quadrature=transverse_quadrature.tolist(),
+        divergent_quadrature=divergent_quadrature.tolist(),
     )
