@@ -1,4 +1,5 @@
 import sharedRanges from "@shared/wake-parameter-ranges.json";
+import { DEFAULT_DUCK_SPECIES, DUCK_SPECIES_PRESETS } from "./duckSpecies";
 
 export interface ParameterRange {
   min: number;
@@ -28,7 +29,7 @@ export const PARAMETER_RANGES = {
 } as const satisfies Record<"duckLengthM" | "speedMS", ParameterRange>;
 
 export const DEFAULT_CONTROLS: WakeControlValues = {
-  duckLengthM: 0.5,
+  duckLengthM: DUCK_SPECIES_PRESETS[DEFAULT_DUCK_SPECIES].defaultLengthM,
   speedMS: 1.2,
 };
 

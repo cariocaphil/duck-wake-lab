@@ -2,9 +2,9 @@
 
 Interactive educational physics simulator for the V-shaped wake produced by a swimming duck.
 
-**Today:** adjust duck length and swimming speed in the browser; FastAPI computes Kelvin wake geometry with the NumPy physics engine; React draws the result as an SVG and shows Froude number and Kelvin half-angle.
+**Today:** pick a duck species (Teal 0.35 m, Mallard 0.55 m, Muscovy 0.75 m; illustrative default body lengths only) and adjust duck length and swimming speed in the browser; FastAPI computes Kelvin wake geometry with the NumPy physics engine; React draws the result as an SVG and shows Froude number and Kelvin half-angle. Selecting a species resets the length to its default and keeps the speed; the length can then be overridden manually without changing the species.
 
-**Later:** duck species presets, animated swimming, advanced speed-dependent physics, and a speaking duck that explains the science.
+**Later:** animated swimming, advanced speed-dependent physics, and a speaking duck that explains the science.
 
 ## Planned physics levels
 
@@ -269,4 +269,3 @@ npm run typecheck
 - Advanced physics level (speed-dependent patterns and visibility)
 - Animation and interactive exploration improvements
 - Educational explanations from a speaking duck
-- Species-specific body presets
