@@ -11,6 +11,10 @@ from openai import APIError, APITimeoutError, OpenAI
 
 from duck_wake_lab import settings
 
+_client: OpenAI | None = None
+_client_key: str | None = None
+_client_timeout_s: float | None = None
+
 
 class OpenAIConfigError(Exception):
     """Raised when OPENAI_API_KEY is missing."""
@@ -27,6 +31,28 @@ class OpenAIProviderError(Exception):
         self.public_message = message
 
 
+def reset_openai_client_for_tests() -> None:
+    """Clear the cached client (test helper only)."""
+    global _client, _client_key, _client_timeout_s
+    _client = None
+    _client_key = None
+    _client_timeout_s = None
+
+
+def _get_client(api_key: str, timeout_s: float) -> OpenAI:
+    """Return a lazily cached OpenAI client; rebuild if key/timeout change."""
+    global _client, _client_key, _client_timeout_s
+    if (
+        _client is None
+        or _client_key != api_key
+        or _client_timeout_s != timeout_s
+    ):
+        _client = OpenAI(api_key=api_key, timeout=timeout_s)
+        _client_key = api_key
+        _client_timeout_s = timeout_s
+    return _client
+
+
 def complete_chat(messages: list[dict[str, str]]) -> str:
     """Call OpenAI chat completions and return the assistant text.
 
@@ -39,10 +65,7 @@ def complete_chat(messages: list[dict[str, str]]) -> str:
             "backend process environment."
         )
 
-    client = OpenAI(
-        api_key=api_key,
-        timeout=settings.openai_timeout_s(),
-    )
+    client = _get_client(api_key, settings.openai_timeout_s())
 
     try:
         response = client.chat.completions.create(
