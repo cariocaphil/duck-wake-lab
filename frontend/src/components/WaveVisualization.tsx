@@ -18,11 +18,11 @@ import {
   WAVE_FAMILY_IDS,
   WAVE_FAMILY_LABELS,
   fieldScale,
-  fillAnimatedRgba,
+  fillRgba,
   isWaveFamily,
   kelvinBoundaries,
-  prepareAnimatedField,
   rgbCss,
+  selectField,
   waterMarksPath,
   waveViewBox,
   type WaveFamily,
@@ -49,9 +49,9 @@ const WATER_MARK_SPACING_LENGTHS = 2;
  * Rendering uses a following camera. The duck and its wake are drawn at fixed
  * camera-relative coordinates (duck at the origin, wake at x <= 0, in meters)
  * so the wake can never detach from its source; the world-fixed reference dots
- * scroll by minus the distance swum. Frames are painted imperatively (canvas
- * pixels and SVG attributes through refs), so React does not re-render at 60
- * FPS and no request is ever made per frame.
+ * scroll by minus the distance swum. Crests are stationary in that frame
+ * (steady wake): only the marks and paddling feet are updated per frame.
+ * React does not re-render at 60 FPS and no request is ever made per frame.
  */
 export function WaveVisualization({
   waveField,
@@ -65,7 +65,6 @@ export function WaveVisualization({
   const marksRef = useRef<SVGPathElement | null>(null);
   const portFootRef = useRef<SVGEllipseElement | null>(null);
   const starboardFootRef = useRef<SVGEllipseElement | null>(null);
-  const imageRef = useRef<ImageData | null>(null);
 
   // The scale is derived from the response only, never from the family, so
   // it stays fixed while switching between Transverse, Divergent and Both.
@@ -73,9 +72,9 @@ export function WaveVisualization({
     () => (waveField === null ? 1 : fieldScale(waveField)),
     [waveField],
   );
-  const animatedField = useMemo(
-    () => (waveField === null ? null : prepareAnimatedField(waveField)),
-    [waveField],
+  const field = useMemo(
+    () => (waveField === null ? null : selectField(waveField, family)),
+    [waveField, family],
   );
   const rates = useMemo(
     () => (waveField === null ? null : ratesFromWaveField(waveField)),
@@ -84,30 +83,26 @@ export function WaveVisualization({
   const markSpacingM =
     waveField === null ? 0 : WATER_MARK_SPACING_LENGTHS * waveField.duck_length_m;
 
-  // Paint one frame from the simulation state. Imperative on purpose.
-  const draw = useCallback(
+  // Paint the static wake field when physics or family changes (not every frame).
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null || field === null) {
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    const nx = field[0]?.length ?? 0;
+    const ny = field.length;
+    const image = ctx.createImageData(nx, ny);
+    fillRgba(image.data, field, scale);
+    ctx.putImageData(image, 0, 0);
+  }, [field, scale]);
+
+  // Per-frame: scroll world marks and paddle feet only.
+  const drawMotion = useCallback(
     (state: SimulationState) => {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (canvas && ctx && animatedField !== null) {
-        let image = imageRef.current;
-        if (
-          image === null ||
-          image.width !== animatedField.nx ||
-          image.height !== animatedField.ny
-        ) {
-          image = ctx.createImageData(animatedField.nx, animatedField.ny);
-          imageRef.current = image;
-        }
-        fillAnimatedRgba(
-          image.data,
-          animatedField,
-          family,
-          { transverse: state.phaseT, divergent: state.phaseD },
-          scale,
-        );
-        ctx.putImageData(image, 0, 0);
-      }
       marksRef.current?.setAttribute(
         "transform",
         `translate(${-waterMarkOffsetM(state.distanceM, markSpacingM)} 0)`,
@@ -121,17 +116,16 @@ export function WaveVisualization({
         footTransform("starboard", state.strokePhase),
       );
     },
-    [animatedField, family, scale, markSpacingM],
+    [markSpacingM],
   );
 
-  const animation = useWakeAnimation({ rates, onFrame: draw });
+  const animation = useWakeAnimation({ rates, onFrame: drawMotion });
   const { stateRef } = animation;
 
-  // Repaint whenever what is drawn changes (new response, family, scale),
-  // including while paused. Time itself is never reset by these changes.
+  // Sync marks/feet when spacing or response changes, including while paused.
   useEffect(() => {
-    draw(stateRef.current);
-  }, [draw, stateRef]);
+    drawMotion(stateRef.current);
+  }, [drawMotion, stateRef]);
 
   const isError = error !== null;
   const status = isError
@@ -164,8 +158,8 @@ export function WaveVisualization({
       <h2>Wave interference</h2>
       <p className="wave-model-label" data-testid="wave-model-label">
         Illustrative interference model, not a physically exact duck wake.
-        The crest motion is an animated dispersion-based approximation, not a
-        strictly steady Kelvin wake.
+        Crests are steady in the duck&apos;s frame; motion is the duck and
+        the scrolling water.
       </p>
 
       <AnimationControls
@@ -329,19 +323,15 @@ export function WaveVisualization({
             Where the contributions have opposite signs, they partially or
             completely cancel, so the combined field is weaker.
           </dd>
-        </dl>
-        <dl>
           <dt>Animation</dt>
           <dd>
             The duck swims at the selected swimming speed (m/s) while the camera
             follows it, so the wake always stays attached behind the duck and
-            the dotted water scrolls past. Crests evolve as{" "}
-            <code>A·cos(φ − ωt)</code>, using the same amplitude and phase as the
-            static field. ω comes from the deep-water relation ω = √(g·k) for
-            each family&apos;s wavelength. This is a visual approximation, not
-            a strictly steady Kelvin wake: in a truly steady wake the crests
-            would stand still relative to the duck, and the crest drift shown
-            here is not physically exact. The animation speed control only
+            the dotted water scrolls past. Crests are stationary relative to
+            the duck (a steady wake in the duck&apos;s frame), matching the
+            expected relationship for an approximately steady Kelvin wake. A
+            traveling-phase term is not used: it made crests drift the wrong
+            way relative to a real wake. The animation speed control only
             changes playback, never the physical swimming speed.
           </dd>
         </dl>

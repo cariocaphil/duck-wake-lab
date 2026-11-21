@@ -13,7 +13,6 @@ from duck_wake_lab.physics import (
     WAVE_GRID_NX,
     WAVE_GRID_NY,
     DuckParameters,
-    deep_water_angular_frequency,
     divergent_wavelength_m,
     froude_number,
     transverse_wavelength_m,
@@ -152,71 +151,3 @@ def test_invalid_nx_rejected(nx) -> None:
 def test_invalid_ny_rejected(ny) -> None:
     with pytest.raises(ValueError, match="ny"):
         wave_field(DuckParameters(LENGTH, SPEED), 1.0, ny=ny)
-
-
-# --- Quadrature / angular frequency (animation support) ---------------------
-
-
-def test_deep_water_angular_frequency_formula() -> None:
-    wavelength = 0.8
-    expected = math.sqrt(GRAVITY_M_S2 * 2.0 * math.pi / wavelength)
-    assert deep_water_angular_frequency(wavelength) == pytest.approx(expected)
-    # Shorter waves oscillate faster in deep water.
-    assert deep_water_angular_frequency(0.4) > deep_water_angular_frequency(0.8)
-
-
-@pytest.mark.parametrize("bad", [0.0, -1.0, math.nan, math.inf])
-def test_deep_water_angular_frequency_rejects_invalid(bad: float) -> None:
-    with pytest.raises(ValueError):
-        deep_water_angular_frequency(bad)
-
-
-def test_field_reports_family_angular_frequencies() -> None:
-    field = _field()
-    assert field.transverse_omega_rad_s == pytest.approx(
-        deep_water_angular_frequency(field.transverse_wavelength_m)
-    )
-    assert field.divergent_omega_rad_s == pytest.approx(
-        deep_water_angular_frequency(field.divergent_wavelength_m)
-    )
-    # Divergent waves are shorter, so they oscillate faster.
-    assert field.divergent_omega_rad_s > field.transverse_omega_rad_s
-
-
-def test_quadrature_has_field_shape_and_is_finite() -> None:
-    field = _field()
-    for grid in (field.transverse_quadrature, field.divergent_quadrature):
-        assert grid.shape == field.transverse.shape
-        assert np.all(np.isfinite(grid))
-    assert np.abs(field.transverse_quadrature).max() > 0.1
-    assert np.abs(field.divergent_quadrature).max() > 0.1
-
-
-def test_quadrature_is_left_right_symmetric_and_zero_ahead() -> None:
-    field = _field()
-    for grid in (field.transverse_quadrature, field.divergent_quadrature):
-        np.testing.assert_allclose(grid, grid[::-1], atol=1e-9)
-        assert not grid[:, -1].any()
-
-
-def test_quadrature_shares_envelope_with_cosine_field() -> None:
-    """``hypot(A cos, A sin)`` is the amplitude envelope: bounded and smooth."""
-    field = _field()
-    amp_t = np.hypot(field.transverse, field.transverse_quadrature)
-    amp_d = np.hypot(field.divergent, field.divergent_quadrature)
-    assert amp_t.max() <= 1.0 + 1e-9
-    assert amp_d.max() <= 0.7 + 1e-9
-    # On the swimming axis the envelope only depends on distance: it ramps
-    # in from zero at the duck and then decays monotonically.
-    axis = field.transverse.shape[0] // 2
-    envelope = amp_t[axis]
-    peak = int(np.argmax(envelope))
-    assert np.all(np.diff(envelope[: peak + 1]) >= -1e-12) or peak == 0
-    assert envelope[-1] == pytest.approx(0.0)
-
-
-def test_zero_speed_quadrature_is_flat_but_omega_is_defined() -> None:
-    field = _field(speed=0.0)
-    assert not field.transverse_quadrature.any()
-    assert not field.divergent_quadrature.any()
-    assert field.transverse_omega_rad_s > 0

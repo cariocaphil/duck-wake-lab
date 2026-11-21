@@ -15,8 +15,6 @@ import { useWakeAnimation } from "./useWakeAnimation";
 
 const RATES: SimulationRates = {
   swimmingSpeedMS: 2,
-  omegaT: 10,
-  omegaD: 20,
   strokeRadS: 5,
 };
 
@@ -87,7 +85,6 @@ describe("useWakeAnimation: timing", () => {
 
     expect(t30.timeS).toBeCloseTo(t60.timeS, 6);
     expect(t30.distanceM).toBeCloseTo(t60.distanceM, 6);
-    expect(t30.phaseT).toBeCloseTo(t60.phaseT, 6);
   });
 
   it("does not advance without physics rates", () => {
@@ -155,8 +152,6 @@ describe("useWakeAnimation: pause, resume, reset", () => {
     expect(result.current.stateRef.current).toEqual({
       timeS: 0,
       distanceM: 0,
-      phaseT: 0,
-      phaseD: 0,
       strokePhase: 0,
     });
     expect(onFrame).toHaveBeenCalledTimes(1);
@@ -170,15 +165,14 @@ describe("useWakeAnimation: pause, resume, reset", () => {
     expect(result.current.playing).toBe(true);
   });
 
-  it("keeps distance and phase when the rates change mid-swim", () => {
+  it("keeps distance when the rates change mid-swim", () => {
     const { result, rerender } = setup();
     const now = playFor(500);
     const before = result.current.stateRef.current;
-    rerender({ rates: { ...RATES, swimmingSpeedMS: 3, omegaT: 30 } });
+    rerender({ rates: { ...RATES, swimmingSpeedMS: 3 } });
     act(() => frames.flush(now + 10));
     const after = result.current.stateRef.current;
     expect(after.distanceM - before.distanceM).toBeCloseTo(3 * 0.01, 6);
-    expect(after.phaseT - before.phaseT).toBeCloseTo(30 * 0.01, 6);
   });
 });
 

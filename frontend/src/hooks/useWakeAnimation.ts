@@ -38,14 +38,14 @@ export interface WakeAnimationControls {
   reducedMotion: boolean;
   togglePlaying: () => void;
   setSpeed: (speed: AnimationSpeed) => void;
-  /** Return time, distance and phase to zero; species/physics are untouched. */
+  /** Return time, distance and paddling phase to zero; species/physics are untouched. */
   reset: () => void;
   /** Latest simulation state. Read it from render callbacks, not from render. */
   stateRef: { readonly current: SimulationState };
 }
 
 /**
- * `requestAnimationFrame` loop for the swimming duck and wave phase.
+ * `requestAnimationFrame` loop for the swimming duck.
  *
  * - Time comes from frame timestamp deltas (refresh-rate independent) and is
  *   clamped, scaled by the playback speed, and integrated in a ref. Frames do

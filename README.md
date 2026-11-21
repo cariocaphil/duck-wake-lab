@@ -6,7 +6,7 @@ Interactive educational physics simulator for the V-shaped wake produced by a sw
 
 **Wave interference:** below the wake view, a top-down map shows an *illustrative* transverse / divergent / combined wave pattern behind the duck, with an explanation of constructive and destructive interference (see [Wave interference model](#wave-interference-model-illustrative)).
 
-**Animated swimming:** in that same panel a duck swims through the water while the waves evolve, with Play / Pause, Reset and 0.5× / 1× / 2× playback controls (see [Animated swimming and wave propagation](#animated-swimming-and-wave-propagation)). The Kelvin line drawing in the Wake panel stays static.
+**Animated swimming:** in that same panel a duck swims through the water with Play / Pause, Reset and 0.5× / 1× / 2× playback controls (see [Animated swimming and wave propagation](#animated-swimming-and-wave-propagation)). Crests stay fixed relative to the duck (steady wake); the scrolling water marks convey motion. The Kelvin line drawing in the Wake panel stays static.
 
 **Later:** a speaking duck that explains the science.
 
@@ -187,32 +187,25 @@ With \(s=-x\ge 0\) the distance behind the duck and \(L\) the duck length (all l
 | Envelopes | Smooth ramp-in from \(s=0\) (nothing ahead of the duck); a smooth lateral window tied to the Kelvin half-angle (transverse 0.7, divergent 0.9 of the cone); \(1/\sqrt{1+s/L}\) decay. |
 | Amplitudes | Transverse 1.0, divergent 0.7: arbitrary, dimensionless numbers. |
 | Determinism | No random phases. The field depends on \(y\) only through \(y^2\) and \(\lvert y\rvert\), so it is exactly mirror-symmetric. Speed 0 gives a flat field. |
-| Grid | Fixed 121 × 49 points over \(x\in[-10L,0]\), \(\lvert y\rvert \le 1.1\cdot 10L\tan\theta_K\) (not client-controllable; about 200 KB of JSON including the quadrature grids). |
+| Grid | Fixed 121 × 49 points over \(x\in[-10L,0]\), \(\lvert y\rvert \le 1.1\cdot 10L\tan\theta_K\) (not client-controllable; about 115 KB of JSON). |
 
-**What is illustrative and not physically derived:** the wavelength rule (real deep-water transverse waves scale like \(2\pi v^2/g\); that is compressed here so it stays readable across the slider range), the curvature radius, the divergent angle and wavelength ratio, every envelope, the decay, and the amplitudes. This is **not** a fluid simulation, **not** the Kelvin wake integral, and does **not** reproduce a physically exact duck wake. There is no energy dissipation or amplitude calibration. The static field is the `t = 0` frame of the animation described below. The Kelvin formulas and Froude number are reused unchanged; the Kelvin angle only supplies the reference envelope.
+**What is illustrative and not physically derived:** the wavelength rule (real deep-water transverse waves scale like \(2\pi v^2/g\); that is compressed here so it stays readable across the slider range), the curvature radius, the divergent angle and wavelength ratio, every envelope, the decay, and the amplitudes. This is **not** a fluid simulation, **not** the Kelvin wake integral, and does **not** reproduce a physically exact duck wake. There is no energy dissipation or amplitude calibration. The Kelvin formulas and Froude number are reused unchanged; the Kelvin angle only supplies the reference envelope.
 
-In the UI, *Transverse*, *Divergent* and *Both* (the combined field) are switched client-side from one response, with no extra request. One symmetric color scale (the largest displacement the animation can reach: the sum of the two families' amplitude envelopes) is used for every view and every frame, so a weak family looks weak next to the combined field and regions where interference strengthens or cancels are visible. Orange is a crest (positive displacement), blue a trough (negative); where the two families have the same sign they reinforce (constructive interference), where the signs differ they partially or fully cancel (destructive interference).
+In the UI, *Transverse*, *Divergent* and *Both* (the combined field) are switched client-side from one response, with no extra request. One symmetric color scale (the largest absolute displacement over all three fields of the response) is used for every view, so a weak family looks weak next to the combined field and regions where interference strengthens or cancels are visible. Orange is a crest (positive displacement), blue a trough (negative); where the two families have the same sign they reinforce (constructive interference), where the signs differ they partially or fully cancel (destructive interference).
 
 ### Animated swimming and wave propagation
 
 The wave panel animates a duck swimming along +x through the PR #7 field. The work is split into three parts:
 
-- **Physics** (backend, only when parameters change): the spatial field, wavelengths and angular frequencies.
-- **Animation** (`frontend/src/animation/simulation.ts`, `hooks/useWakeAnimation.ts`): elapsed time, duck distance and wave phase, driven by `requestAnimationFrame` timestamp deltas, so it is independent of the monitor refresh rate. Frames update refs, the canvas and SVG attributes directly; React does not re-render per frame and no API request is made per frame.
-- **Rendering** (`WaveVisualization`): draws the current state.
+- **Physics** (backend, only when parameters change): the spatial field and wavelengths.
+- **Animation** (`frontend/src/animation/simulation.ts`, `hooks/useWakeAnimation.ts`): elapsed time, duck distance and paddling phase, driven by `requestAnimationFrame` timestamp deltas, so it is independent of the monitor refresh rate. Frames update SVG attributes through refs; React does not re-render per frame and no API request is made per frame.
+- **Rendering** (`WaveVisualization`): paints the static wake field when parameters change, and moves the duck / water marks each frame.
 
-**Swimming speed vs animation speed.** *Swimming speed* (m/s) is a physical parameter: it moves the duck and sets the Froude number and wavelengths, and it is changed in Controls. *Animation speed* (0.5× / 1× / 2×) only scales playback time; it never changes the physics. Pause freezes both the duck and the waves, Reset returns time, distance and phase to zero and keeps the selected species and physics parameters. Distance and phase are accumulated frame by frame, so changing a parameter mid-swim does not teleport the duck or snap the phase.
+**Swimming speed vs animation speed.** *Swimming speed* (m/s) is a physical parameter: it moves the duck and sets the Froude number and wavelengths, and it is changed in Controls. *Animation speed* (0.5× / 1× / 2×) only scales playback time; it never changes the physics. Pause freezes the duck and the scrolling water, Reset returns time and distance to zero and keeps the selected species and physics parameters. Distance is accumulated frame by frame, so changing a parameter mid-swim never teleports the duck.
 
 **Coordinates.** Physical coordinates are in meters in the world frame: the duck starts at \(x=0\) and its distance is \(\int v\,dt\). The view uses a following camera: the duck and its wake are drawn at fixed *camera-relative* coordinates (duck at the origin, wake at \(x\le 0\)), so the wake cannot detach from its source, while the world-fixed dots scroll by \(-\text{distance}\) to show the motion. The duck is drawn at true scale (its length equals the duck length in meters).
 
-**Wave propagation.** The traveling wave is
-
-\[
-\eta(x,y,t)=A(x,y)\cos\big(\phi(x,y)-\omega t\big)
-=A\cos\phi\,\cos\omega t + A\sin\phi\,\sin\omega t
-\]
-
-using the existing PR #7 amplitude \(A\) and phase \(\phi\) for each family. The cosine grid is the existing field; the API additionally returns the quadrature grids \(A\sin\phi\) (`transverse_quadrature`, `divergent_quadrature`) and each family's \(\omega\) (`transverse_omega_rad_s`, `divergent_omega_rad_s`), so the client only multiplies and adds per pixel. At \(t=0\) the picture equals the static field exactly. Each family has its own \(\omega=\sqrt{g\,k}\) with \(k=2\pi/\lambda\) (deep-water dispersion), so the two systems drift past each other and the interference visibly changes.
+**Steady wake (no crest drift).** Crests are **stationary in the duck / camera frame**: the canvas shows the same PR #7 spatial field while the duck and water marks move. That matches the expected relationship for an approximately steady Kelvin wake. A traveling-phase term \(A\cos(\phi-\omega t)\) was tried and dropped: with the illustrative wavelengths it made crests drift astern relative to the duck (the opposite of a real wake). Motion is conveyed by the scrolling world marks and paddling feet, not by evolving the crest pattern.
 
 **What is derived and what is a visual approximation**
 
@@ -220,15 +213,12 @@ using the existing PR #7 amplitude \(A\) and phase \(\phi\) for each family. The
 | --- | --- |
 | Spatial field \(A,\phi\), wavelengths, Froude number, Kelvin boundaries | Same illustrative model as PR #7 (see above) |
 | Duck position | Derived: \(\int v\,dt\) from the selected swimming speed |
-| \(\omega=\sqrt{gk}\) per family | Deep-water dispersion applied to the illustrative wavelengths |
-| Crest drift astern relative to the duck | **Visual approximation, not physically exact** |
-| Fully developed wake at \(t=0\), paddling feet, dot spacing | Visual only |
+| Crests fixed relative to the duck | Intended steady-wake relationship in the duck frame |
+| Fully developed wake from the first frame, paddling feet, dot spacing | Visual only |
 
-**This is an animated dispersion-based approximation, not a strictly steady Kelvin wake.** In an exactly steady wake the crests are stationary relative to the duck (\(\omega=0\) in the duck's frame). Here the crests deliberately drift astern at roughly \(\omega/k\) so that wave propagation is visible. That rate is not derived from the duck speed (the compressed wavelength rule does not satisfy the steady-wake condition), so wave phase velocity and swimming speed are different quantities, and the crest motion should not be read as the real dynamics of a duck wake.
+**Known limitation.** Accumulated time and distance are kept across parameter changes, but a new wavelength gives the crests a new spatial pattern, so a slider change can cause a visible discontinuity in the picture. It is not interpolated in this version.
 
-**Known limitation.** Accumulated time, distance and phase are kept across parameter changes, but a new wavelength gives the crests a new spatial pattern, so a slider change can cause a visible discontinuity in the picture. It is not interpolated in this version.
-
-**Reduced motion and visibility.** With `prefers-reduced-motion: reduce` the animation starts paused and Play opts in. When the tab is hidden the frame loop is suspended (state is kept) and resumes without a time jump. Frame deltas are also clamped to 100 ms. The wave-field response is larger than before (five grids, about 200 KB of JSON) because of the quadrature grids.
+**Reduced motion and visibility.** With `prefers-reduced-motion: reduce` the animation starts paused and Play opts in. When the tab is hidden the frame loop is suspended (state is kept) and resumes without a time jump. Frame deltas are also clamped to 100 ms.
 
 ### Usage example
 
@@ -319,23 +309,18 @@ Response (abridged):
   "wake_length_m": 5.5,
   "transverse_wavelength_m": 1.12,
   "divergent_wavelength_m": 0.56,
-  "transverse_omega_rad_s": 7.4,
-  "divergent_omega_rad_s": 10.5,
   "nx": 121,
   "ny": 49,
   "x_m": [-5.5, "...", 0.0],
   "y_m": [-2.14, "...", 2.14],
   "transverse": [[0.0, "..."], "..."],
   "divergent": [[0.0, "..."], "..."],
-  "combined": [[0.0, "..."], "..."],
-  "transverse_quadrature": [[0.0, "..."], "..."],
-  "divergent_quadrature": [[0.0, "..."], "..."]
+  "combined": [[0.0, "..."], "..."]
 }
 ```
 
 - Grids are `[ny][nx]` (row = y index, column = x index); coordinates are in meters, displacements are arbitrary dimensionless units.
 - `transverse` and `divergent` are rounded to 4 decimals and `combined` is computed from those rounded arrays, so `combined = transverse + divergent` holds to within float tolerance (about 1e-9).
-- `transverse_quadrature` / `divergent_quadrature` are \(A\sin\phi\) for the same envelopes (same rounding), and `*_omega_rad_s` is the illustrative deep-water angular frequency of each family; together they let a client animate \(A\cos(\phi-\omega t)\). This is a visual approximation, not a strictly steady Kelvin wake.
 - All values are finite; repeated identical requests return identical bodies.
 
 ## Local installation

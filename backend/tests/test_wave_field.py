@@ -58,13 +58,7 @@ def test_payload_size_is_bounded() -> None:
 
 def test_all_values_finite() -> None:
     data = _get()
-    for key in (
-        "transverse",
-        "divergent",
-        "combined",
-        "transverse_quadrature",
-        "divergent_quadrature",
-    ):
+    for key in ("transverse", "divergent", "combined"):
         assert np.all(np.isfinite(np.array(data[key])))
 
 
@@ -158,26 +152,3 @@ def test_existing_wake_endpoint_unchanged() -> None:
     data = client.post("/api/wake", json=VALID_BODY).json()
     assert data["physics_mode"] == "kelvin"
     assert "transverse" not in data
-
-
-def test_quadrature_grids_and_omegas_are_returned() -> None:
-    data = _get()
-    nx, ny = data["nx"], data["ny"]
-    for key in ("transverse_quadrature", "divergent_quadrature"):
-        grid = np.array(data[key])
-        assert grid.shape == (ny, nx)
-        assert np.abs(grid).max() > 0.1
-        np.testing.assert_allclose(grid, grid[::-1], atol=1e-9)
-    assert data["transverse_omega_rad_s"] == pytest.approx(
-        math.sqrt(9.81 * 2 * math.pi / data["transverse_wavelength_m"])
-    )
-    assert data["divergent_omega_rad_s"] == pytest.approx(
-        math.sqrt(9.81 * 2 * math.pi / data["divergent_wavelength_m"])
-    )
-    assert data["divergent_omega_rad_s"] > data["transverse_omega_rad_s"]
-
-
-def test_zero_speed_quadrature_is_flat() -> None:
-    data = _get({**VALID_BODY, "swimming_speed_m_s": 0.0})
-    for key in ("transverse_quadrature", "divergent_quadrature"):
-        assert not np.array(data[key]).any()

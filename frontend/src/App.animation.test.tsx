@@ -8,8 +8,8 @@ import {
   type FakeFrames,
 } from "./test/animationFrames";
 import {
-  makeAnimatedWaveFieldResponse,
   makeWakeResponse,
+  makeWaveFieldResponse,
   mockJsonResponse,
   stubRoutedFetch,
 } from "./test/wakeFixtures";
@@ -41,7 +41,7 @@ function echoWaveFetch() {
     const body = JSON.parse(String(init?.body)) as WaveBody;
     return Promise.resolve(
       mockJsonResponse(
-        makeAnimatedWaveFieldResponse({
+        makeWaveFieldResponse({
           duck_length_m: body.duck_length_m,
           swimming_speed_m_s: body.swimming_speed_m_s,
         }),
@@ -172,7 +172,7 @@ describe("App animation integration", () => {
     const waveFetch = vi.fn().mockImplementation((_url: unknown, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as WaveBody;
       const response = mockJsonResponse(
-        makeAnimatedWaveFieldResponse({
+        makeWaveFieldResponse({
           duck_length_m: body.duck_length_m,
           swimming_speed_m_s: body.swimming_speed_m_s,
         }),

@@ -1,27 +1,29 @@
 /**
- * Pure animation clock for the swimming duck and the evolving wave phase.
+ * Pure animation clock for the swimming duck.
  *
  * Three concerns are kept apart:
  *  - physics: the spatial wake field and its parameters come from the API;
- *  - animation (this module): elapsed time, duck distance and wave phase;
+ *  - animation (this module): elapsed time, duck distance and paddling phase;
  *  - rendering: drawing the current state (WaveVisualization).
  *
  * Nothing here touches React, the DOM or the network.
  *
  * Coordinates. Distances are meters in the *world* frame: the duck starts at
- * world x = 0 and swims toward +x, so after time t it is at
- * `distanceM`. The renderer uses a following camera: the duck and its wake
- * are drawn at fixed *camera-relative* coordinates (duck at the origin, wake
- * at x <= 0) and only the world-fixed reference marks move, scrolling by
- * `-distanceM`.
+ * world x = 0 and swims toward +x, so after time t it is at `distanceM`. The
+ * renderer uses a following camera: the duck and its wake are drawn at fixed
+ * *camera-relative* coordinates (duck at the origin, wake at x <= 0) and only
+ * the world-fixed reference marks move, scrolling by `-distanceM`.
  *
- * Accumulators, not products. Distance and phases are integrated frame by
- * frame (`distance += v * dt`, `phase += omega * dt`) instead of computed as
- * `v * t` and `omega * t`. Changing the swimming speed, duck length or species
- * mid-swim therefore never teleports the duck or snaps the wave phase. A new
- * wavelength can still change the *appearance* of the crests abruptly (the
- * accumulated phase is kept but the spatial pattern is new); this is accepted
- * and deliberately not smoothed.
+ * Steady wake. Crests are stationary in the duck / camera frame (the PR #7
+ * field is painted as-is). A traveling-phase term was deliberately not used:
+ * evolving `A·cos(φ − ωt)` made crests drift astern relative to the duck,
+ * the opposite of a real steady wake.
+ *
+ * Accumulators, not products. Distance and paddling phase are integrated
+ * frame by frame (`distance += v * dt`) instead of computed as `v * t`.
+ * Changing the swimming speed, duck length or species mid-swim therefore never
+ * teleports the duck. A new wavelength can still change the crest appearance
+ * abruptly; that is accepted and deliberately not smoothed.
  */
 
 /** Playback multipliers offered by the UI. They never change physics. */
@@ -44,10 +46,6 @@ export interface SimulationState {
   timeS: number;
   /** Distance swum along +x since the start or last reset, in meters. */
   distanceM: number;
-  /** Accumulated transverse wave phase `omega_t * t`, radians. */
-  phaseT: number;
-  /** Accumulated divergent wave phase `omega_d * t`, radians. */
-  phaseD: number;
   /** Accumulated paddling phase, radians (purely visual). */
   strokePhase: number;
 }
@@ -56,10 +54,6 @@ export interface SimulationState {
 export interface SimulationRates {
   /** Physical swimming speed in m/s (the duck's translational speed). */
   swimmingSpeedMS: number;
-  /** Transverse angular frequency in rad/s (illustrative, from the API). */
-  omegaT: number;
-  /** Divergent angular frequency in rad/s (illustrative, from the API). */
-  omegaD: number;
   /** Paddling angular rate in rad/s (visual only). */
   strokeRadS: number;
 }
@@ -67,8 +61,6 @@ export interface SimulationRates {
 export const INITIAL_SIMULATION_STATE: SimulationState = {
   timeS: 0,
   distanceM: 0,
-  phaseT: 0,
-  phaseD: 0,
   strokePhase: 0,
 };
 
@@ -92,7 +84,7 @@ export function frameDeltaS(previousMs: number, currentMs: number): number {
 /**
  * Advance the simulation by `realDtS` real seconds at the given playback
  * multiplier. The multiplier scales simulation time only; the physical rates
- * (m/s, rad/s) are unchanged.
+ * (m/s) are unchanged.
  */
 export function advanceSimulation(
   state: SimulationState,
@@ -107,8 +99,6 @@ export function advanceSimulation(
   return {
     timeS: state.timeS + dt,
     distanceM: state.distanceM + rates.swimmingSpeedMS * dt,
-    phaseT: state.phaseT + rates.omegaT * dt,
-    phaseD: state.phaseD + rates.omegaD * dt,
     strokePhase: state.strokePhase + rates.strokeRadS * dt,
   };
 }
@@ -122,8 +112,6 @@ const STROKE_HZ_PER_FROUDE = 1.5;
 export interface AnimationSource {
   swimming_speed_m_s: number;
   froude_number: number;
-  transverse_omega_rad_s: number;
-  divergent_omega_rad_s: number;
 }
 
 /**
@@ -138,8 +126,6 @@ export function ratesFromWaveField(source: AnimationSource): SimulationRates {
   );
   return {
     swimmingSpeedMS: source.swimming_speed_m_s,
-    omegaT: source.transverse_omega_rad_s,
-    omegaD: source.divergent_omega_rad_s,
     strokeRadS: moving ? 2 * Math.PI * strokeHz : 0,
   };
 }

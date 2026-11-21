@@ -1,19 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WaveVisualization } from "./WaveVisualization";
-import {
-  CREST_RGB,
-  fieldScale,
-  fillRgba,
-  selectField,
-} from "../waves/waveField";
+import { CREST_RGB } from "../waves/waveField";
 import {
   installFakeFrames,
   stubReducedMotion,
   type FakeFrames,
 } from "../test/animationFrames";
 import {
-  makeAnimatedWaveFieldResponse,
   makeWaveFieldResponse,
 } from "../test/wakeFixtures";
 
@@ -194,11 +188,16 @@ describe("WaveVisualization", () => {
     expect(explanation).toHaveTextContent(/cancel/i);
     expect(explanation).toHaveTextContent(/Kelvin angle/i);
     expect(explanation).toHaveTextContent(/not the direction of the individual wave crests/i);
+    expect(explanation).toHaveTextContent(/stationary relative to the duck/i);
+    expect(explanation).toHaveTextContent(/traveling-phase/i);
     expect(screen.getByTestId("wave-model-label")).toHaveTextContent(
       /illustrative interference model/i,
     );
     expect(screen.getByTestId("wave-model-label")).toHaveTextContent(
       /not a physically exact duck wake/i,
+    );
+    expect(screen.getByTestId("wave-model-label")).toHaveTextContent(
+      /steady in the duck/i,
     );
   });
 });
@@ -235,7 +234,7 @@ describe("WaveVisualization animation", () => {
     return now;
   }
 
-  function renderAnimated(wave = makeAnimatedWaveFieldResponse()) {
+  function renderAnimated(wave = makeWaveFieldResponse()) {
     return render(
       <WaveVisualization waveField={wave} loading={false} error={null} />,
     );
@@ -254,37 +253,30 @@ describe("WaveVisualization animation", () => {
     expect(screen.getByTestId("wave-duck")).toHaveAttribute("transform", "scale(0.55)");
   });
 
-  it("evolves the wave pattern over time while playing", () => {
+  it("keeps canvas pixels unchanged while playing (steady wake)", () => {
     renderAnimated();
     const initial = frames.at(-1);
-    play(300);
-    const later = frames.at(-1);
-    expect(later).not.toEqual(initial);
-    expect(frames.length).toBeGreaterThan(10);
-  });
-
-  it("draws the unchanged static PR #7 field at time zero", () => {
-    const wave = makeAnimatedWaveFieldResponse();
-    renderAnimated(wave);
-    const expected = new Uint8ClampedArray(wave.nx * wave.ny * 4);
-    fillRgba(expected, selectField(wave, "both"), fieldScale(wave));
-    expect(Array.from(frames.at(-1) ?? [])).toEqual(Array.from(expected));
+    expect(initial).toBeDefined();
+    play(500);
+    // Canvas is painted once from the static field; marks/feet move instead.
+    expect(frames.at(-1)).toEqual(initial);
+    expect(frames).toHaveLength(1);
   });
 
   it("scrolls the world marks by the distance swum", () => {
-    renderAnimated(makeAnimatedWaveFieldResponse({ swimming_speed_m_s: 1.2 }));
+    renderAnimated(makeWaveFieldResponse({ swimming_speed_m_s: 1.2 }));
     expect(markOffset()).toBeCloseTo(0, 9);
     play(500);
     // 1.2 m/s over ~0.5 s = 0.6 m; marks are 2 x 0.55 m apart.
     expect(markOffset()).toBeCloseTo(-0.6, 1);
   });
 
-  it("does not translate at zero swimming speed but keeps the waves alive", () => {
-    renderAnimated(makeAnimatedWaveFieldResponse({ swimming_speed_m_s: 0 }));
+  it("does not translate at zero swimming speed", () => {
+    renderAnimated(makeWaveFieldResponse({ swimming_speed_m_s: 0 }));
     const initial = frames.at(-1);
     play(500);
     expect(markOffset()).toBeCloseTo(0, 9);
-    expect(frames.at(-1)).not.toEqual(initial);
+    expect(frames.at(-1)).toEqual(initial);
   });
 
   it("scales playback with the animation speed without changing physics", () => {
@@ -344,9 +336,9 @@ describe("WaveVisualization animation", () => {
     const before = markOffset();
     rerender(
       <WaveVisualization
-        waveField={makeAnimatedWaveFieldResponse({
+        waveField={makeWaveFieldResponse({
           duck_length_m: 0.55,
-          transverse_omega_rad_s: 14,
+          swimming_speed_m_s: 1.8,
         })}
         loading={false}
         error={null}

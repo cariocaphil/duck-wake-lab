@@ -135,11 +135,6 @@ class WaveFieldResponse(BaseModel):
     units. ``combined`` equals ``transverse + divergent`` (within float
     tolerance). This is an illustrative interference model, not a physically
     exact duck wake.
-
-    ``transverse_quadrature`` / ``divergent_quadrature`` are the matching
-    ``A * sin(phi)`` grids; together with ``*_omega_rad_s`` they let a client
-    animate ``A * cos(phi - omega * t)``. This is an animated
-    dispersion-based approximation, not a strictly steady Kelvin wake.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -160,22 +155,6 @@ class WaveFieldResponse(BaseModel):
         allow_inf_nan=False,
         description="Illustrative divergent wavelength (fraction of transverse).",
     )
-    transverse_omega_rad_s: float = Field(
-        allow_inf_nan=False,
-        gt=0,
-        description=(
-            "Illustrative deep-water angular frequency sqrt(g k) of the "
-            "transverse family (visual approximation)."
-        ),
-    )
-    divergent_omega_rad_s: float = Field(
-        allow_inf_nan=False,
-        gt=0,
-        description=(
-            "Illustrative deep-water angular frequency sqrt(g k) of the "
-            "divergent family (visual approximation)."
-        ),
-    )
     nx: int = Field(ge=2)
     ny: int = Field(ge=3)
     x_m: list[float] = Field(description="Grid x coordinates (m), -wake_length..0.")
@@ -189,12 +168,6 @@ class WaveFieldResponse(BaseModel):
     combined: list[list[float]] = Field(
         description="Transverse plus divergent displacement, [ny][nx]."
     )
-    transverse_quadrature: list[list[float]] = Field(
-        description="Transverse quadrature A*sin(phi), [ny][nx], arbitrary units."
-    )
-    divergent_quadrature: list[list[float]] = Field(
-        description="Divergent quadrature A*sin(phi), [ny][nx], arbitrary units."
-    )
 
     @model_validator(mode="after")
     def validate_grid_contract(self) -> Self:
@@ -207,8 +180,6 @@ class WaveFieldResponse(BaseModel):
             "transverse": self.transverse,
             "divergent": self.divergent,
             "combined": self.combined,
-            "transverse_quadrature": self.transverse_quadrature,
-            "divergent_quadrature": self.divergent_quadrature,
         }
         for name, grid in fields.items():
             if len(grid) != self.ny or any(len(row) != self.nx for row in grid):

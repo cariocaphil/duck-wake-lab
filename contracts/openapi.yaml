@@ -45,10 +45,7 @@ paths:
         their sum (combined). This is an illustrative interference model, not
         a fluid simulation, not a physically derived Kelvin wake solution, and
         not a physically exact duck wake. Displacements are arbitrary,
-        dimensionless units. The quadrature grids (A sin(phi)) and angular
-        frequencies let a client animate A cos(phi - omega t); this is an
-        animated dispersion-based approximation, not a strictly steady Kelvin
-        wake, and the resulting crest motion is not physically exact. Grid values are [ny][nx] (row = y index, column =
+        dimensionless units. Grid values are [ny][nx] (row = y index, column =
         x index); coordinates are in meters. The field depends only on duck
         length and swimming speed.
       requestBody:
@@ -190,8 +187,6 @@ components:
         - wake_length_m
         - transverse_wavelength_m
         - divergent_wavelength_m
-        - transverse_omega_rad_s
-        - divergent_omega_rad_s
         - nx
         - ny
         - x_m
@@ -199,8 +194,6 @@ components:
         - transverse
         - divergent
         - combined
-        - transverse_quadrature
-        - divergent_quadrature
       properties:
         duck_length_m:
           type: number
@@ -219,20 +212,6 @@ components:
         divergent_wavelength_m:
           type: number
           description: Illustrative divergent wavelength (fraction of transverse)
-        transverse_omega_rad_s:
-          type: number
-          exclusiveMinimum: true
-          minimum: 0
-          description: >
-            Illustrative deep-water angular frequency sqrt(g k) of the
-            transverse family (visual approximation)
-        divergent_omega_rad_s:
-          type: number
-          exclusiveMinimum: true
-          minimum: 0
-          description: >
-            Illustrative deep-water angular frequency sqrt(g k) of the
-            divergent family (visual approximation)
         nx:
           type: integer
           minimum: 2
@@ -266,20 +245,6 @@ components:
         combined:
           type: array
           description: Transverse plus divergent displacement, [ny][nx]
-          items:
-            type: array
-            items:
-              type: number
-        transverse_quadrature:
-          type: array
-          description: Transverse quadrature A sin(phi), [ny][nx], arbitrary units
-          items:
-            type: array
-            items:
-              type: number
-        divergent_quadrature:
-          type: array
-          description: Divergent quadrature A sin(phi), [ny][nx], arbitrary units
           items:
             type: array
             items:

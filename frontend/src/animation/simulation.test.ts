@@ -14,8 +14,6 @@ import {
 
 const RATES: SimulationRates = {
   swimmingSpeedMS: 1.5,
-  omegaT: 8,
-  omegaD: 12,
   strokeRadS: 10,
 };
 
@@ -75,8 +73,7 @@ describe("advanceSimulation: timing", () => {
     for (const other of [at30, at144]) {
       expect(other.timeS).toBeCloseTo(at60.timeS, 9);
       expect(other.distanceM).toBeCloseTo(at60.distanceM, 9);
-      expect(other.phaseT).toBeCloseTo(at60.phaseT, 9);
-      expect(other.phaseD).toBeCloseTo(at60.phaseD, 9);
+      expect(other.strokePhase).toBeCloseTo(at60.strokePhase, 9);
     }
   });
 
@@ -112,22 +109,12 @@ describe("advanceSimulation: duck movement", () => {
     expect(state.distanceM - before).toBeCloseTo(0.03, 9);
   });
 
-  it("keeps the accumulated phase when the angular frequency changes", () => {
-    let state = initialSimulationState();
-    state = advanceSimulation(state, 1, 1, RATES);
-    const before = state.phaseT;
-    state = advanceSimulation(state, 0.01, 1, { ...RATES, omegaT: 20 });
-    expect(state.phaseT - before).toBeCloseTo(0.2, 9);
-  });
-
   it("restores the initial state on reset", () => {
     const moved = run(1, 0.05);
     expect(moved.distanceM).toBeGreaterThan(0);
     expect(initialSimulationState()).toEqual({
       timeS: 0,
       distanceM: 0,
-      phaseT: 0,
-      phaseD: 0,
       strokePhase: 0,
     });
   });
@@ -137,15 +124,10 @@ describe("ratesFromWaveField", () => {
   const source = {
     swimming_speed_m_s: 1.2,
     froude_number: 0.5,
-    transverse_omega_rad_s: 9,
-    divergent_omega_rad_s: 13,
   };
 
-  it("passes physical rates through unchanged", () => {
-    const rates = ratesFromWaveField(source);
-    expect(rates.swimmingSpeedMS).toBe(1.2);
-    expect(rates.omegaT).toBe(9);
-    expect(rates.omegaD).toBe(13);
+  it("passes swimming speed through unchanged", () => {
+    expect(ratesFromWaveField(source).swimmingSpeedMS).toBe(1.2);
   });
 
   it("paddles faster with Froude number, capped, and not at all when still", () => {

@@ -90,14 +90,6 @@ export type WaveFieldResponse = {
    * Illustrative divergent wavelength (fraction of transverse)
    */
   divergent_wavelength_m: number;
-  /**
-   * Illustrative deep-water angular frequency sqrt(g k) of the transverse family (visual approximation)
-   */
-  transverse_omega_rad_s: number;
-  /**
-   * Illustrative deep-water angular frequency sqrt(g k) of the divergent family (visual approximation)
-   */
-  divergent_omega_rad_s: number;
   nx: number;
   ny: number;
   /**
@@ -120,14 +112,6 @@ export type WaveFieldResponse = {
    * Transverse plus divergent displacement, [ny][nx]
    */
   combined: Array<Array<number>>;
-  /**
-   * Transverse quadrature A sin(phi), [ny][nx], arbitrary units
-   */
-  transverse_quadrature: Array<Array<number>>;
-  /**
-   * Divergent quadrature A sin(phi), [ny][nx], arbitrary units
-   */
-  divergent_quadrature: Array<Array<number>>;
 }
 export type ValidationError = { loc: Array<(string | number)>, msg: string, type: string }
 export type HTTPValidationError = Partial<{ detail: Array<ValidationError> }>
@@ -159,7 +143,7 @@ export type post_ComputeWake = {
       
     }
 /**
- * Returns a deterministic, gridded water-surface displacement field behind the duck for two wave families (transverse and divergent) and their sum (combined). This is an illustrative interference model, not a fluid simulation, not a physically derived Kelvin wake solution, and not a physically exact duck wake. Displacements are arbitrary, dimensionless units. The quadrature grids (A sin(phi)) and angular frequencies let a client animate A cos(phi - omega t); this is an animated dispersion-based approximation, not a strictly steady Kelvin wake, and the resulting crest motion is not physically exact. Grid values are [ny][nx] (row = y index, column = x index); coordinates are in meters. The field depends only on duck length and swimming speed.
+ * Returns a deterministic, gridded water-surface displacement field behind the duck for two wave families (transverse and divergent) and their sum (combined). This is an illustrative interference model, not a fluid simulation, not a physically derived Kelvin wake solution, and not a physically exact duck wake. Displacements are arbitrary, dimensionless units. Grid values are [ny][nx] (row = y index, column = x index); coordinates are in meters. The field depends only on duck length and swimming speed.
  */
 export type post_ComputeWaveField = {
       method: "POST",
