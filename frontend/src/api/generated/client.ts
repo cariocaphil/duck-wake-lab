@@ -19,6 +19,18 @@ export const WaveFieldRequest = z.strictObject({ duck_length_m: z.number().gt(0)
 export type WaveFieldResponse = __TypedOpenapi.Schemas.WaveFieldResponse;
 export const WaveFieldResponse = z.strictObject({ duck_length_m: z.number(), swimming_speed_m_s: z.number(), froude_number: z.number(), kelvin_angle_deg: z.number(), wake_length_m: z.number(), transverse_wavelength_m: z.number(), divergent_wavelength_m: z.number(), nx: z.number().int().min(2), ny: z.number().int().min(3), x_m: z.array(z.number()), y_m: z.array(z.number()), transverse: z.array(z.array(z.number())), divergent: z.array(z.array(z.number())), combined: z.array(z.array(z.number())) });
 
+export type ChatHistoryMessage = __TypedOpenapi.Schemas.ChatHistoryMessage;
+export const ChatHistoryMessage = z.strictObject({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(1000) });
+
+export type DuckExplainContext = __TypedOpenapi.Schemas.DuckExplainContext;
+export const DuckExplainContext = z.strictObject({ species: z.enum(["teal", "mallard", "muscovy"]), duck_length_m: z.number().gt(0), swimming_speed_m_s: z.number().min(0), physics_mode: z.enum(["kelvin", "advanced"]).default("kelvin") });
+
+export type DuckExplainRequest = __TypedOpenapi.Schemas.DuckExplainRequest;
+export const DuckExplainRequest = z.strictObject({ question: z.string().min(1).max(500), context: DuckExplainContext, history: z.array(ChatHistoryMessage).max(10).optional() });
+
+export type DuckExplainResponse = __TypedOpenapi.Schemas.DuckExplainResponse;
+export const DuckExplainResponse = z.strictObject({ answer: z.string() });
+
 export type ValidationError = __TypedOpenapi.Schemas.ValidationError;
 export const ValidationError = z.strictObject({ loc: z.array(z.union([z.string(), z.number().int()])), msg: z.string(), type: z.string() });
 
@@ -48,6 +60,16 @@ export const post_ComputeWaveField = {
   responses: { 200: WaveFieldResponse, 422: HTTPValidationError },
 };
 
+export type post_ExplainDuckPhysics = __TypedOpenapi.Endpoints.post_ExplainDuckPhysics;
+export const post_ExplainDuckPhysics = {
+  method: z.literal("POST"),
+  path: z.literal("/api/duck/explain"),
+  requestFormat: z.literal("json"),
+  responseFormat: z.literal("json"),
+  parameters: { body: DuckExplainRequest },
+  responses: { 200: DuckExplainResponse, 422: HTTPValidationError },
+};
+
 // </Endpoints>
 
   
@@ -55,7 +77,8 @@ export const post_ComputeWaveField = {
      export const EndpointByMethod = {
      post: {
            "/api/wake": post_ComputeWake,
-"/api/wave-field": post_ComputeWaveField
+"/api/wave-field": post_ComputeWaveField,
+"/api/duck/explain": post_ExplainDuckPhysics
          }
      } satisfies { [M in keyof __TypedOpenapi.EndpointByMethod]: { [P in keyof __TypedOpenapi.EndpointByMethod[M]]: unknown } }
      export type EndpointByMethod = __TypedOpenapi.EndpointByMethod;

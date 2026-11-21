@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchWake, fetchWaveField, WakeApiError } from "./wakeClient";
+import {
+  fetchDuckExplain,
+  fetchWake,
+  fetchWaveField,
+  WakeApiError,
+} from "./wakeClient";
 import {
   assertWakeResponseSchema,
   assertWaveFieldResponseSchema,
@@ -170,6 +175,64 @@ describe("fetchWaveField", () => {
       fetchWaveField({ duck_length_m: 0.5, swimming_speed_m_s: 1.2 }),
     ).rejects.toSatisfy(
       (err: unknown) => err instanceof DOMException && err.name === "AbortError",
+    );
+  });
+});
+
+describe("fetchDuckExplain", () => {
+  it("posts question, context, and history to /api/duck/explain", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(mockJsonResponse({ answer: "Quack!" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchDuckExplain({
+      question: "Why a V?",
+      context: {
+        species: "mallard",
+        duck_length_m: 0.55,
+        swimming_speed_m_s: 0.8,
+        physics_mode: "kelvin",
+      },
+      history: [{ role: "user", content: "Hi" }],
+    });
+
+    expect(result).toEqual({ answer: "Quack!" });
+    const [url, init] = fetchMock.mock.calls[0] as [unknown, RequestInit];
+    expect(String(url)).toBe(`${window.location.origin}/api/duck/explain`);
+    expect(JSON.parse(String(init.body))).toEqual({
+      question: "Why a V?",
+      context: {
+        species: "mallard",
+        duck_length_m: 0.55,
+        swimming_speed_m_s: 0.8,
+        physics_mode: "kelvin",
+      },
+      history: [{ role: "user", content: "Hi" }],
+    });
+  });
+
+  it("throws WakeApiError on provider failure status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({ detail: "Speaking Duck is not configured." }, 503),
+      ),
+    );
+    await expect(
+      fetchDuckExplain({
+        question: "Why?",
+        context: {
+          species: "mallard",
+          duck_length_m: 0.55,
+          swimming_speed_m_s: 0.8,
+        },
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof WakeApiError &&
+        err.status === 503 &&
+        /Duck explain request failed \(503\)/.test(err.message),
     );
   });
 });

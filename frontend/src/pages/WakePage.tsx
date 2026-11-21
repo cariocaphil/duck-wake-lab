@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppHeader } from "../components/AppHeader";
+import { DuckChatLauncher } from "../components/duck-chat/DuckChatLauncher";
 import { ParameterSummary } from "../components/ParameterSummary";
 import { WakeControls } from "../components/WakeControls";
 import { WakeVisualization } from "../components/WakeVisualization";
@@ -53,6 +54,8 @@ export function WakePage() {
       />
 
       <ParameterSummary species={species} values={values} wake={wake} />
+
+      <DuckChatLauncher species={species} values={values} />
     </div>
   );
 }

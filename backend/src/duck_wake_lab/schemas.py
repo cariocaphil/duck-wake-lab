@@ -119,6 +119,73 @@ class WakeResponse(BaseModel):
         return self
 
 
+DuckSpeciesValue = Literal["teal", "mallard", "muscovy"]
+ChatMessageRole = Literal["user", "assistant"]
+
+
+class ChatHistoryMessage(BaseModel):
+    """One prior turn from the client. System roles are never accepted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: ChatMessageRole
+    content: str = Field(min_length=1, max_length=1000)
+
+
+class DuckExplainContext(BaseModel):
+    """Simulation parameters sent with a speaking-duck question.
+
+    Derived physics (Froude, angles, wavelengths) are computed on the server.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    species: DuckSpeciesValue = Field(
+        description="Educational duck species preset selected in the UI."
+    )
+    duck_length_m: float = Field(
+        gt=0,
+        allow_inf_nan=False,
+        description="Duck body length in meters.",
+    )
+    swimming_speed_m_s: float = Field(
+        ge=0,
+        allow_inf_nan=False,
+        description="Swimming speed in meters per second.",
+    )
+    physics_mode: PhysicsModeValue = Field(
+        default=PhysicsMode.KELVIN,
+        description=(
+            "Physics model: 'kelvin' (classical fixed envelope, default) or "
+            "'advanced' (simplified Froude-dependent apparent wake)."
+        ),
+    )
+
+
+class DuckExplainRequest(BaseModel):
+    """Ask the speaking duck a physics question about the current simulation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=500)
+    context: DuckExplainContext
+    history: list[ChatHistoryMessage] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "Prior user/assistant turns. System instructions are server-owned."
+        ),
+    )
+
+
+class DuckExplainResponse(BaseModel):
+    """Plain-text answer from the speaking duck."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str
+
+
 class WaveFieldRequest(DuckMotionRequest):
     """Parameters for the illustrative wave-interference field.
 
