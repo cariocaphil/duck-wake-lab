@@ -20,6 +20,58 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+type UtteranceLike = {
+  text: string;
+  onstart: ((ev: Event) => void) | null;
+  onend: ((ev: Event) => void) | null;
+  onerror: ((ev: Event) => void) | null;
+};
+
+function stubSpeechSynthesis() {
+  const utterances: UtteranceLike[] = [];
+
+  class FakeUtterance {
+    text: string;
+    pitch = 1;
+    rate = 1;
+    lang = "";
+    voice: SpeechSynthesisVoice | null = null;
+    onstart: ((ev: Event) => void) | null = null;
+    onend: ((ev: Event) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+
+    constructor(text: string) {
+      this.text = text;
+      utterances.push(this);
+    }
+  }
+
+  const speak = vi.fn();
+  const cancel = vi.fn();
+
+  vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+  vi.stubGlobal("speechSynthesis", {
+    speak,
+    cancel,
+    getVoices: () => [],
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  });
+
+  return {
+    utterances,
+    speak,
+    cancel,
+    latest: () => utterances[utterances.length - 1]!,
+    fireStart: (utterance: UtteranceLike = utterances[utterances.length - 1]!) => {
+      utterance.onstart?.(new Event("start"));
+    },
+    fireEnd: (utterance: UtteranceLike = utterances[utterances.length - 1]!) => {
+      utterance.onend?.(new Event("end"));
+    },
+  };
+}
+
 function renderChat(
   explainImpl: (url: unknown, init?: RequestInit) => Promise<unknown> = async () =>
     mockJsonResponse({ answer: "Quack! The Kelvin angle is about 19.5 degrees." }),
@@ -141,11 +193,9 @@ describe("DuckChatLauncher", () => {
     });
   });
 
-  it("sets avatar to thinking while loading and speaking during reveal", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const user = userEvent.setup({
-      advanceTimers: vi.advanceTimersByTime.bind(vi),
-    });
+  it("sets avatar to thinking while loading and stays idle until Speak", async () => {
+    const speech = stubSpeechSynthesis();
+    const user = userEvent.setup();
 
     let resolveExplain!: (value: unknown) => void;
     const pending = new Promise((resolve) => {
@@ -175,23 +225,156 @@ describe("DuckChatLauncher", () => {
     });
 
     await waitFor(() => {
-      expect(
-        avatars().some((node) => node.getAttribute("data-state") === "speaking"),
-      ).toBe(true);
+      expect(screen.getByTestId("duck-speech-speak")).toBeInTheDocument();
     });
+    expect(
+      avatars().every((node) => node.getAttribute("data-state") !== "speaking"),
+    ).toBe(true);
 
+    await user.click(screen.getByTestId("duck-speech-speak"));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(5000);
+      speech.fireStart();
     });
+    expect(
+      avatars().some((node) => node.getAttribute("data-state") === "speaking"),
+    ).toBe(true);
+
+    await user.click(screen.getByTestId("duck-speech-stop"));
+    expect(
+      avatars().every((node) => node.getAttribute("data-state") === "idle"),
+    ).toBe(true);
+  });
+
+  it("hides speech controls when speech synthesis is unsupported", async () => {
+    vi.stubGlobal("speechSynthesis", undefined);
+    const user = userEvent.setup();
+    renderChat(async () =>
+      mockJsonResponse({ answer: "Text only when TTS is missing." }),
+    );
+
+    await user.click(screen.getByTestId("duck-chat-launcher"));
+    await user.click(
+      screen.getByRole("button", { name: SUGGESTED_QUESTIONS[0] }),
+    );
 
     await waitFor(() => {
       expect(
-        avatars().every((node) => node.getAttribute("data-state") === "idle"),
-      ).toBe(true);
+        within(screen.getByTestId("duck-chat-message-assistant")).getByText(
+          /Text only/,
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("duck-speech-controls")).not.toBeInTheDocument();
+  });
+
+  it("cancels speech when a new question starts loading", async () => {
+    const speech = stubSpeechSynthesis();
+    const user = userEvent.setup();
+
+    let resolveSecond!: (value: unknown) => void;
+    let callCount = 0;
+    renderChat(async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        return mockJsonResponse({ answer: "First answer about Kelvin." });
+      }
+      return new Promise((resolve) => {
+        resolveSecond = resolve;
+      });
+    });
+
+    await user.click(screen.getByTestId("duck-chat-launcher"));
+    await user.click(
+      screen.getByRole("button", { name: SUGGESTED_QUESTIONS[0] }),
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("duck-speech-speak")).toBeEnabled();
+    });
+
+    await user.click(screen.getByTestId("duck-speech-speak"));
+    await act(async () => {
+      speech.fireStart();
+    });
+    expect(
+      screen
+        .getAllByTestId("duck-avatar")
+        .some((node) => node.getAttribute("data-state") === "speaking"),
+    ).toBe(true);
+
+    await user.type(
+      screen.getByLabelText(/Ask the duck a physics question/i),
+      "What is Froude?",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("duck-chat-loading")).toBeInTheDocument();
+    });
+    expect(
+      screen
+        .getAllByTestId("duck-avatar")
+        .every((node) => node.getAttribute("data-state") !== "speaking"),
+    ).toBe(true);
+    expect(speech.cancel).toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSecond(mockJsonResponse({ answer: "Second answer about Froude." }));
     });
   });
 
+  it("replays the last spoken response after a newer answer arrives", async () => {
+    const speech = stubSpeechSynthesis();
+    const user = userEvent.setup();
+    let callCount = 0;
+    renderChat(async () => {
+      callCount += 1;
+      return mockJsonResponse({
+        answer: callCount === 1 ? "Spoken first answer." : "Newest unspoken answer.",
+      });
+    });
+
+    await user.click(screen.getByTestId("duck-chat-launcher"));
+    await user.click(
+      screen.getByRole("button", { name: SUGGESTED_QUESTIONS[0] }),
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("duck-speech-speak")).toBeEnabled();
+    });
+
+    await user.click(screen.getByTestId("duck-speech-speak"));
+    await act(async () => {
+      speech.fireStart();
+      speech.fireEnd();
+    });
+    expect(speech.latest().text).toBe("Spoken first answer.");
+
+    await user.type(
+      screen.getByLabelText(/Ask the duck a physics question/i),
+      "What is Froude?",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      const assistantBubbles = screen.getAllByTestId("duck-chat-message-assistant");
+      expect(
+        within(assistantBubbles[assistantBubbles.length - 1]!).getByText(
+          "Newest unspoken answer.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("duck-speech-replay"));
+    expect(speech.latest().text).toBe("Spoken first answer.");
+
+    await act(async () => {
+      speech.fireStart();
+      speech.fireEnd();
+    });
+
+    await user.click(screen.getByTestId("duck-speech-speak"));
+    expect(speech.latest().text).toBe("Newest unspoken answer.");
+  });
+
   it("skips decorative speaking animation when reduced motion is preferred", async () => {
+    stubSpeechSynthesis();
     vi.stubGlobal(
       "matchMedia",
       vi.fn().mockImplementation((query: string) => ({
@@ -230,6 +413,7 @@ describe("DuckChatLauncher", () => {
   });
 
   it("does not replay reveal when reopening after the answer finished", async () => {
+    stubSpeechSynthesis();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({
       advanceTimers: vi.advanceTimersByTime.bind(vi),
@@ -275,7 +459,8 @@ describe("DuckChatLauncher", () => {
     ).toBe(true);
   });
 
-  it("closing the chat unmounts speaking reveal", async () => {
+  it("closing the chat unmounts speaking and cancels playback", async () => {
+    const speech = stubSpeechSynthesis();
     const user = userEvent.setup();
     renderChat(async () =>
       mockJsonResponse({ answer: "Long enough answer for speaking state." }),
@@ -286,9 +471,12 @@ describe("DuckChatLauncher", () => {
       screen.getByRole("button", { name: SUGGESTED_QUESTIONS[0] }),
     );
     await waitFor(() => {
-      expect(screen.getByTestId("duck-chat-announcer")).toHaveTextContent(
-        /Long enough/,
-      );
+      expect(screen.getByTestId("duck-speech-speak")).toBeEnabled();
+    });
+
+    await user.click(screen.getByTestId("duck-speech-speak"));
+    await act(async () => {
+      speech.fireStart();
     });
 
     await user.click(screen.getByTestId("duck-chat-launcher"));
@@ -296,6 +484,7 @@ describe("DuckChatLauncher", () => {
     expect(screen.getByTestId("duck-avatar").getAttribute("data-state")).toBe(
       "idle",
     );
+    expect(speech.cancel).toHaveBeenCalled();
   });
 });
 

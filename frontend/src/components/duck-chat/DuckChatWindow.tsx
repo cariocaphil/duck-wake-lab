@@ -5,9 +5,11 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import type { ChatMessage, DuckChatStatus } from "../../hooks/useDuckChat";
+import { useDuckSpeech } from "../../hooks/useDuckSpeech";
 import { DuckAvatar, type DuckAvatarState } from "./DuckAvatar";
 import { DuckChatInput } from "./DuckChatInput";
 import { DuckChatMessage } from "./DuckChatMessage";
+import { DuckSpeechControls } from "./DuckSpeechControls";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 import { useProgressiveReveal } from "./useProgressiveReveal";
 
@@ -34,12 +36,12 @@ interface DuckChatWindowProps {
 
 function resolveAvatarState(
   status: DuckChatStatus,
-  isRevealing: boolean,
+  isSpeaking: boolean,
 ): DuckAvatarState {
   if (status === "loading") {
     return "thinking";
   }
-  if (isRevealing) {
+  if (isSpeaking) {
     return "speaking";
   }
   return "idle";
@@ -62,6 +64,16 @@ export function DuckChatWindow({
   const reducedMotion = usePrefersReducedMotion();
   const [announcement, setAnnouncement] = useState("");
   const announcedIdRef = useRef<string | null>(null);
+  const {
+    supported: speechSupported,
+    isSpeaking,
+    isBusy,
+    canReplay,
+    speak,
+    stop: stopSpeech,
+    replay,
+  } = useDuckSpeech();
+  const previousAssistantIdRef = useRef<string | null>(null);
 
   const latestAssistant =
     [...messages].reverse().find((m) => m.role === "assistant") ?? null;
@@ -71,7 +83,7 @@ export function DuckChatWindow({
     ? isAssistantRevealed(latestAssistant.id)
     : false;
 
-  const { displayed, isRevealing } = useProgressiveReveal({
+  const { displayed } = useProgressiveReveal({
     messageId: latestAssistant?.id ?? null,
     text: latestAssistant?.content ?? "",
     active: revealActive,
@@ -87,6 +99,22 @@ export function DuckChatWindow({
     announcedIdRef.current = latestAssistant.id;
     setAnnouncement(latestAssistant.content);
   }, [latestAssistant]);
+
+  // Cancel speech when a new question is in flight or a newer answer arrives.
+  useEffect(() => {
+    if (status === "loading") {
+      stopSpeech();
+    }
+  }, [status, stopSpeech]);
+
+  useEffect(() => {
+    const nextId = latestAssistant?.id ?? null;
+    const previousId = previousAssistantIdRef.current;
+    previousAssistantIdRef.current = nextId;
+    if (previousId !== null && nextId !== null && previousId !== nextId) {
+      stopSpeech();
+    }
+  }, [latestAssistant?.id, stopSpeech]);
 
   useEffect(() => {
     const node = panelRef.current;
@@ -128,8 +156,11 @@ export function DuckChatWindow({
     }
   }
 
-  const avatarState = resolveAvatarState(status, isRevealing);
+  const avatarState = resolveAvatarState(status, isSpeaking);
   const showSuggestions = messages.length === 0 && !isPending;
+  const showSpeechControls =
+    speechSupported &&
+    (Boolean(latestAssistant?.content.trim()) || canReplay);
 
   return (
     <div
@@ -146,6 +177,20 @@ export function DuckChatWindow({
         <h2 id="duck-chat-title" className="duck-chat-window__title">
           Ask the Duck
         </h2>
+        {showSpeechControls ? (
+          <DuckSpeechControls
+            latestText={latestAssistant?.content ?? null}
+            canReplay={canReplay}
+            isBusy={isBusy}
+            onSpeak={() => {
+              if (latestAssistant?.content) {
+                speak(latestAssistant.content);
+              }
+            }}
+            onStop={stopSpeech}
+            onReplay={replay}
+          />
+        ) : null}
         <button
           type="button"
           className="duck-chat-window__close"

@@ -8,7 +8,7 @@ Interactive educational physics simulator for the V-shaped wake produced by a sw
 
 **Animated swimming:** in that same panel a duck swims through the water with Play / Pause, Reset and 0.5× / 1× / 2× playback controls (see [Animated swimming and wave propagation](#animated-swimming-and-wave-propagation)). Crests stay fixed relative to the duck (steady wake); the scrolling water marks convey motion. The Kelvin line drawing in the Wake panel stays static.
 
-**Speaking Duck:** a floating chatbot in the bottom-right corner answers physics questions about the current simulation via OpenAI on the backend (see [Speaking Duck](#speaking-duck)).
+**Speaking Duck:** a floating chatbot in the bottom-right corner answers physics questions about the current simulation via OpenAI on the backend, with optional browser text-to-speech (see [Speaking Duck](#speaking-duck)).
 
 ## Planned physics levels
 
@@ -64,7 +64,7 @@ duck-wake-lab/
 │   │   ├── components/
 │   │   │   └── duck-chat/       # Floating Speaking Duck chatbot + DuckAvatar
 │   │   ├── animation/           # Pure animation clock (simulation.ts), duck pose helpers
-│   │   ├── hooks/               # useDebouncedQuery, useWakeQuery, useWaveFieldQuery, useWakeAnimation, useDuckChat
+│   │   ├── hooks/               # useDebouncedQuery, useWakeQuery, useWaveFieldQuery, useWakeAnimation, useDuckChat, useDuckSpeech
 │   │   ├── waves/waveField.ts   # Pure helpers: family selection, color scale, static and animated pixels
 │   │   ├── pages/WakePage.tsx
 │   │   ├── App.tsx
@@ -333,6 +333,22 @@ Response (abridged):
 A floating duck avatar sits in the bottom-right corner. Click it to open **Ask the Duck**, type a physics question (or pick a suggested one), and the duck answers using OpenAI on the **backend only**. Closing the panel keeps the conversation for as long as the page stays mounted. The wave animation and wake queries are independent of the chat.
 
 Each request sends the current species, duck length, swimming speed, and physics mode. The backend derives Froude number, Kelvin / apparent angles, and illustrative wavelengths from the existing physics domain and injects those numbers into a server-owned system prompt. Client history may include only `user` and `assistant` turns.
+
+### Text-to-speech (Quacking Duck)
+
+After an answer appears, optional **Speak** / **Stop** / **Replay** controls use the browser **Web Speech API** (`speechSynthesis`) — no TTS API keys or paid providers.
+
+| Control | Behavior |
+| --- | --- |
+| **Speak** | Speaks the latest assistant answer |
+| **Replay** | Re-speaks the most recently spoken response (may differ from the latest answer) |
+| **Stop** | Cancels playback and returns the beak to idle |
+
+Playback never starts automatically (avoids unexpected audio and autoplay restrictions). The duck’s beak animates only while speech is active and stops on finish, cancel, error, a new question, or a newer answer. `prefers-reduced-motion` disables the decorative beak animation; speech remains available via the controls.
+
+Pitch and rate are tuned for a playful, slightly cartoonish duck voice (`frontend/src/components/duck-chat/duckSpeechConfig.ts`). Available voices and how pitch/rate sound vary by browser and OS; there is no cross-browser audio-effects pipeline.
+
+If `speechSynthesis` is unavailable, the chat still works as text and the speech controls are hidden.
 
 ### Scientific limitations the duck should respect
 
