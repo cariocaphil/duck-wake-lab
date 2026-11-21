@@ -118,91 +118,122 @@ export function useDuckChat(
     setIsOpen(false);
   }, []);
 
-  const send = useCallback((rawQuestion: string) => {
-    const question = rawQuestion.trim();
-    if (!question || statusRef.current === "loading") {
-      return;
-    }
-
-    setLastFailedQuestion(question);
-    setError(null);
-    setStatus("loading");
-
-    const prior = messagesRef.current;
-    const userMessage: ChatMessage = {
-      id: nextMessageId(),
-      role: "user",
-      content: question,
-    };
-    const withUser = [...prior, userMessage];
-    messagesRef.current = withUser;
-    setMessages(withUser);
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-
-    const body = buildRequest(question, prior, simulationRef.current);
-
-    void (async () => {
-      try {
-        const response = await fetchDuckExplain(body, controller.signal);
-        if (controller.signal.aborted || requestId !== requestIdRef.current) {
-          return;
-        }
-        const assistantMessage: ChatMessage = {
-          id: nextMessageId(),
-          role: "assistant",
-          content: response.answer,
-        };
-        setMessages((prev) => {
-          const next = [...prev, assistantMessage];
-          messagesRef.current = next;
-          return next;
-        });
-        setStatus("idle");
-        setError(null);
-        setLastFailedQuestion(null);
-      } catch (err) {
-        if (controller.signal.aborted || requestId !== requestIdRef.current) {
-          return;
-        }
-        const message =
-          err instanceof WakeApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : "The speaking duck could not answer.";
-        setStatus("error");
-        setError(message);
-      } finally {
-        if (abortRef.current === controller) {
-          abortRef.current = null;
-        }
+  /**
+   * Shared explain starter. Callers pass prior history and the user turn
+   * explicitly so retry can reuse a failed turn without racing React state.
+   */
+  const startExplain = useCallback(
+    (
+      question: string,
+      priorMessages: ChatMessage[],
+      userMessage: ChatMessage,
+    ) => {
+      if (statusRef.current === "loading") {
+        return;
       }
-    })();
-  }, []);
+
+      setLastFailedQuestion(question);
+      setError(null);
+      setStatus("loading");
+
+      const withUser = [...priorMessages, userMessage];
+      messagesRef.current = withUser;
+      setMessages(withUser);
+
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+
+      const body = buildRequest(question, priorMessages, simulationRef.current);
+
+      void (async () => {
+        try {
+          const response = await fetchDuckExplain(body, controller.signal);
+          if (controller.signal.aborted || requestId !== requestIdRef.current) {
+            return;
+          }
+          const assistantMessage: ChatMessage = {
+            id: nextMessageId(),
+            role: "assistant",
+            content: response.answer,
+          };
+          setMessages((prev) => {
+            const next = [...prev, assistantMessage];
+            messagesRef.current = next;
+            return next;
+          });
+          setStatus("idle");
+          setError(null);
+          setLastFailedQuestion(null);
+        } catch (err) {
+          if (controller.signal.aborted || requestId !== requestIdRef.current) {
+            return;
+          }
+          const message =
+            err instanceof WakeApiError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "The speaking duck could not answer.";
+          setStatus("error");
+          setError(message);
+        } finally {
+          if (abortRef.current === controller) {
+            abortRef.current = null;
+          }
+        }
+      })();
+    },
+    [],
+  );
+
+  const send = useCallback(
+    (rawQuestion: string) => {
+      const question = rawQuestion.trim();
+      if (!question || statusRef.current === "loading") {
+        return;
+      }
+
+      const prior = messagesRef.current;
+      const userMessage: ChatMessage = {
+        id: nextMessageId(),
+        role: "user",
+        content: question,
+      };
+      startExplain(question, prior, userMessage);
+    },
+    [startExplain],
+  );
 
   const retry = useCallback(() => {
     if (statusRef.current === "loading" || !lastFailedQuestion) {
       return;
     }
+
     const question = lastFailedQuestion;
-    setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.role === "user" && last.content === question) {
-        const next = prev.slice(0, -1);
-        messagesRef.current = next;
-        return next;
-      }
-      return prev;
-    });
-    queueMicrotask(() => {
-      send(question);
-    });
-  }, [lastFailedQuestion, send]);
+    const current = messagesRef.current;
+    const last = current[current.length - 1];
+
+    let priorMessages: ChatMessage[];
+    let userMessage: ChatMessage;
+
+    if (last?.role === "user" && last.content === question) {
+      // Reuse the failed turn; do not remove and re-append it.
+      priorMessages = current.slice(0, -1);
+      userMessage = last;
+    } else {
+      priorMessages = current;
+      userMessage = {
+        id: nextMessageId(),
+        role: "user",
+        content: question,
+      };
+    }
+
+    startExplain(question, priorMessages, userMessage);
+  }, [lastFailedQuestion, startExplain]);
 
   return {
     isOpen,

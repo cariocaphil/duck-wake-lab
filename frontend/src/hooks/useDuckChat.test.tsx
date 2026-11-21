@@ -144,7 +144,7 @@ describe("useDuckChat", () => {
     expect(result.current.messages.at(-1)?.content).toBe("Stale answer");
   });
 
-  it("surfaces errors and supports retry", async () => {
+  it("surfaces errors and supports retry without duplicating the user turn", async () => {
     const fetchMock = stubExplain(async () =>
       mockJsonResponse({ detail: "down" }, 502),
     );
@@ -155,6 +155,8 @@ describe("useDuckChat", () => {
     });
     await waitFor(() => expect(result.current.status).toBe("error"));
     expect(result.current.error).toMatch(/502|failed/i);
+    const failedUserId = result.current.messages[0]?.id;
+    expect(failedUserId).toBeDefined();
 
     fetchMock.mockImplementation(async () =>
       mockJsonResponse({ answer: "Recovered." }),
@@ -164,6 +166,65 @@ describe("useDuckChat", () => {
     });
     await waitFor(() => expect(result.current.status).toBe("idle"));
     expect(result.current.messages.at(-1)?.content).toBe("Recovered.");
+
+    const userTurns = result.current.messages.filter((m) => m.role === "user");
+    expect(userTurns).toHaveLength(1);
+    expect(userTurns[0]?.content).toBe("Why waves?");
+    expect(userTurns[0]?.id).toBe(failedUserId);
+    expect(result.current.messages.map((m) => m.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+  });
+
+  it("retry reuses the failed user turn and posts prior history only once", async () => {
+    const fetchMock = stubExplain(async () =>
+      mockJsonResponse({ answer: "ok" }),
+    );
+
+    const { result } = renderHook(() => useDuckChat(simulation));
+    act(() => {
+      result.current.send("First ok");
+    });
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+
+    fetchMock.mockImplementation(async () =>
+      mockJsonResponse({ detail: "down" }, 502),
+    );
+    act(() => {
+      result.current.send("Retry me");
+    });
+    await waitFor(() => expect(result.current.status).toBe("error"));
+
+    const userIdBeforeRetry = result.current.messages.find(
+      (m) => m.role === "user" && m.content === "Retry me",
+    )?.id;
+
+    fetchMock.mockImplementation(async () =>
+      mockJsonResponse({ answer: "Second try worked." }),
+    );
+    act(() => {
+      result.current.retry();
+    });
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+
+    const retryUsers = result.current.messages.filter(
+      (m) => m.role === "user" && m.content === "Retry me",
+    );
+    expect(retryUsers).toHaveLength(1);
+    expect(retryUsers[0]?.id).toBe(userIdBeforeRetry);
+
+    const lastBody = JSON.parse(
+      String(fetchMock.mock.calls.at(-1)?.[1]?.body),
+    ) as {
+      question: string;
+      history: Array<{ role: string; content: string }>;
+    };
+    expect(lastBody.question).toBe("Retry me");
+    expect(lastBody.history).toEqual([
+      { role: "user", content: "First ok" },
+      { role: "assistant", content: "ok" },
+    ]);
   });
 
   it("stores the complete answer immediately (not presentation-dependent)", async () => {
