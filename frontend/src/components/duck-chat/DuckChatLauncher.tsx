@@ -1,3 +1,4 @@
+import { useCallback, useRef } from "react";
 import { useDuckChat } from "../../hooks/useDuckChat";
 import type { DuckSpecies } from "../../duckSpecies";
 import type { WakeControlValues } from "../../types";
@@ -13,9 +14,19 @@ interface DuckChatLauncherProps {
  * Floating Speaking Duck: launcher button + optional chat window.
  * Conversation history is preserved while the window is closed.
  * Progressive reveal / beak speaking live only in the open window.
+ * Revealed assistant message IDs persist across close/reopen.
  */
 export function DuckChatLauncher({ species, values }: DuckChatLauncherProps) {
   const chat = useDuckChat({ species, values });
+  const revealedIdsRef = useRef(new Set<string>());
+
+  const isAssistantRevealed = useCallback((messageId: string) => {
+    return revealedIdsRef.current.has(messageId);
+  }, []);
+
+  const onAssistantRevealed = useCallback((messageId: string) => {
+    revealedIdsRef.current.add(messageId);
+  }, []);
 
   const launcherState =
     chat.isOpen && chat.status === "loading" ? "thinking" : "idle";
@@ -31,6 +42,8 @@ export function DuckChatLauncher({ species, values }: DuckChatLauncherProps) {
           onClose={chat.close}
           onSend={chat.send}
           onRetry={chat.retry}
+          isAssistantRevealed={isAssistantRevealed}
+          onAssistantRevealed={onAssistantRevealed}
         />
       ) : null}
 

@@ -229,6 +229,52 @@ describe("DuckChatLauncher", () => {
     ).toBe(true);
   });
 
+  it("does not replay reveal when reopening after the answer finished", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTime.bind(vi),
+    });
+    const answer = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    renderChat(async () => mockJsonResponse({ answer }));
+
+    await user.click(screen.getByTestId("duck-chat-launcher"));
+    await user.click(
+      screen.getByRole("button", { name: SUGGESTED_QUESTIONS[0] }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("duck-chat-announcer")).toHaveTextContent(
+        answer,
+      );
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    await waitFor(() => {
+      expect(
+        screen
+          .getAllByTestId("duck-avatar")
+          .every((node) => node.getAttribute("data-state") === "idle"),
+      ).toBe(true);
+    });
+
+    await user.click(screen.getByTestId("duck-chat-launcher"));
+    expect(screen.queryByTestId("duck-chat-window")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("duck-chat-launcher"));
+    expect(
+      within(screen.getByTestId("duck-chat-message-assistant")).getByText(
+        answer,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByTestId("duck-avatar")
+        .every((node) => node.getAttribute("data-state") !== "speaking"),
+    ).toBe(true);
+  });
+
   it("closing the chat unmounts speaking reveal", async () => {
     const user = userEvent.setup();
     renderChat(async () =>

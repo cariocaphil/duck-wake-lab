@@ -26,6 +26,10 @@ interface DuckChatWindowProps {
   onClose: () => void;
   onSend: (question: string) => void;
   onRetry: () => void;
+  /** True when this assistant message has already finished revealing. */
+  isAssistantRevealed: (messageId: string) => boolean;
+  /** Persist that an assistant message finished revealing (survives remount). */
+  onAssistantRevealed: (messageId: string) => void;
 }
 
 function resolveAvatarState(
@@ -49,6 +53,8 @@ export function DuckChatWindow({
   onClose,
   onSend,
   onRetry,
+  isAssistantRevealed,
+  onAssistantRevealed,
 }: DuckChatWindowProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -61,11 +67,17 @@ export function DuckChatWindow({
     [...messages].reverse().find((m) => m.role === "assistant") ?? null;
   const revealActive =
     Boolean(latestAssistant) && status !== "loading" && status !== "error";
+  const alreadyRevealed = latestAssistant
+    ? isAssistantRevealed(latestAssistant.id)
+    : false;
 
   const { displayed, isRevealing } = useProgressiveReveal({
+    messageId: latestAssistant?.id ?? null,
     text: latestAssistant?.content ?? "",
     active: revealActive,
     reducedMotion,
+    alreadyRevealed,
+    onRevealed: onAssistantRevealed,
   });
 
   useEffect(() => {
