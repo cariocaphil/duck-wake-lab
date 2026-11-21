@@ -1,6 +1,8 @@
 import { createApi } from "./generated/api.client";
 import {
   TypedStatusError,
+  type DuckExplainRequest,
+  type DuckExplainResponse,
   type Point2D,
   type WakeRequest,
   type WakeResponse,
@@ -9,6 +11,8 @@ import {
 } from "./generated/client";
 
 export type {
+  DuckExplainRequest,
+  DuckExplainResponse,
   Point2D,
   WakeRequest,
   WakeResponse,
@@ -111,5 +115,23 @@ export async function fetchWaveField(
     });
   } catch (err) {
     throw toApiError(err, "Wave-field request", "wave-field");
+  }
+}
+
+/**
+ * Ask the speaking duck a physics question (OpenAI on the backend only).
+ */
+export async function fetchDuckExplain(
+  request: DuckExplainRequest,
+  signal?: AbortSignal,
+): Promise<DuckExplainResponse> {
+  try {
+    return await api.post("/api/duck/explain", {
+      body: request,
+      overrides: { signal },
+      throwOnStatusError: true,
+    });
+  } catch (err) {
+    throw toApiError(err, "Duck explain request", "duck explain");
   }
 }

@@ -113,6 +113,42 @@ export type WaveFieldResponse = {
    */
   combined: Array<Array<number>>;
 }
+export type ChatHistoryMessage = { role: ("user" | "assistant"), content: string }
+export type DuckExplainContext = {
+  /**
+   * Educational duck species preset selected in the UI
+   */
+  species: ("teal" | "mallard" | "muscovy");
+  /**
+   * Duck body length in meters
+   */
+  duck_length_m: number;
+  /**
+   * Swimming speed in meters per second
+   */
+  swimming_speed_m_s: number;
+  /**
+   * Physics model selected in the UI. "kelvin" is the classical fixed envelope; "advanced" adds a simplified Froude-dependent apparent wake.
+   */
+  physics_mode?: ("kelvin" | "advanced");
+}
+export type DuckExplainRequest = {
+  /**
+   * User's physics question for the speaking duck
+   */
+  question: string;
+  context: DuckExplainContext;
+  /**
+   * Prior user/assistant turns for multi-turn context. System instructions are never accepted from the client. Omitted or empty means a new conversation.
+   */
+  history?: Array<ChatHistoryMessage>;
+}
+export type DuckExplainResponse = {
+  /**
+   * Plain-text answer from the speaking duck
+   */
+  answer: string;
+}
 export type ValidationError = { loc: Array<(string | number)>, msg: string, type: string }
 export type HTTPValidationError = Partial<{ detail: Array<ValidationError> }>
 
@@ -162,6 +198,26 @@ export type post_ComputeWaveField = {
 },
       
     }
+/**
+ * Answers a physics question in the voice of the swimming duck, using the current simulation parameters. Derived quantities (Froude number, Kelvin and apparent angles, illustrative wavelengths) are computed on the server from the request context. Conversation history may include only user and assistant turns; the system instruction is server-owned. Requires OPENAI_API_KEY in the process environment for live answers.
+ */
+export type post_ExplainDuckPhysics = {
+      method: "POST",
+      path: "/api/duck/explain",
+      requestFormat: "json",
+      responseFormat: "json",
+      parameters: {
+            
+        
+        
+        
+        body:  Schemas.DuckExplainRequest,
+          }
+      responses: {200: Schemas.DuckExplainResponse,
+422: Schemas.HTTPValidationError,
+},
+      
+    }
 
   // </Endpoints>
   }
@@ -171,7 +227,8 @@ export type post_ComputeWaveField = {
      export type EndpointByMethod = {
      post: {
            "/api/wake": Endpoints.post_ComputeWake,
-"/api/wave-field": Endpoints.post_ComputeWaveField
+"/api/wave-field": Endpoints.post_ComputeWaveField,
+"/api/duck/explain": Endpoints.post_ExplainDuckPhysics
          }
      }
      

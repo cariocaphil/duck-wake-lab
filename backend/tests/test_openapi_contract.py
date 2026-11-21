@@ -88,6 +88,14 @@ WAVE_FIELD_SCHEMA_NAMES = (
     "HTTPValidationError",
     "ValidationError",
 )
+DUCK_EXPLAIN_SCHEMA_NAMES = (
+    "DuckExplainRequest",
+    "DuckExplainResponse",
+    "DuckExplainContext",
+    "ChatHistoryMessage",
+    "HTTPValidationError",
+    "ValidationError",
+)
 
 
 def _wake_operation_and_schemas(spec: dict[str, Any]) -> dict[str, Any]:
@@ -188,3 +196,52 @@ def test_openapi_contract_matches_fastapi_wave_field_surface() -> None:
     # The wave-field request has no physics_mode: it depends only on length/speed.
     request_props = checked["schemas"]["WaveFieldRequest"]["properties"]
     assert set(request_props) == {"duck_length_m", "swimming_speed_m_s"}
+
+
+def test_openapi_contract_matches_fastapi_duck_explain_surface() -> None:
+    """Checked-in YAML and FastAPI agree on the duck-explain contract shape."""
+    with CONTRACT_PATH.open(encoding="utf-8") as handle:
+        checked_in = yaml.safe_load(handle)
+    runtime = app.openapi()
+
+    checked = _operation_and_schemas(
+        checked_in, "/api/duck/explain", DUCK_EXPLAIN_SCHEMA_NAMES
+    )
+    live = _operation_and_schemas(
+        runtime, "/api/duck/explain", DUCK_EXPLAIN_SCHEMA_NAMES
+    )
+
+    assert checked["request"] == live["request"]
+    assert checked["response"] == live["response"]
+    assert checked["error"] == live["error"]
+    for name in (
+        "DuckExplainRequest",
+        "DuckExplainResponse",
+        "DuckExplainContext",
+        "ChatHistoryMessage",
+    ):
+        assert name in checked["schemas"]
+        assert checked["schemas"][name] == live["schemas"][name]
+
+    request = checked["schemas"]["DuckExplainRequest"]
+    assert set(request["required"]) == {"question", "context"}
+    question = request["properties"]["question"]
+    assert question["minLength"] == 1
+    assert question["maxLength"] == 500
+
+    context = checked["schemas"]["DuckExplainContext"]
+    assert set(context["required"]) == {
+        "species",
+        "duck_length_m",
+        "swimming_speed_m_s",
+    }
+    mode = context["properties"]["physics_mode"]
+    assert mode["enum"] == ["kelvin", "advanced"]
+    assert mode["default"] == "kelvin"
+
+    history = request["properties"]["history"]
+    assert history["maxItems"] == 10
+
+    response = checked["schemas"]["DuckExplainResponse"]
+    assert set(response["required"]) == {"answer"}
+    assert set(response["properties"]) == {"answer"}

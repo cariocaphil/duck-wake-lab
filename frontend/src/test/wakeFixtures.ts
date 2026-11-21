@@ -132,9 +132,9 @@ export function mockJsonResponse(
 type FetchLike = (url: unknown, init?: RequestInit) => unknown;
 
 /**
- * Stub global fetch so wake requests go to `wakeFetch` and wave-field
- * requests go to a separate mock. Page-level tests can then keep asserting on
- * the wake mock only. Returns the wave-field mock.
+ * Stub global fetch so wake, wave-field, and duck-explain requests are routed
+ * separately. Page-level tests can keep asserting on the wake mock only.
+ * Returns the wave-field mock.
  */
 export function stubRoutedFetch(
   wakeFetch: FetchLike,
@@ -143,12 +143,22 @@ export function stubRoutedFetch(
     .mockImplementation(() =>
       Promise.resolve(mockJsonResponse(makeWaveFieldResponse())),
     ),
+  duckExplainFetch: FetchLike = vi
+    .fn()
+    .mockImplementation(() =>
+      Promise.resolve(mockJsonResponse({ answer: "Quack! Test answer." })),
+    ),
 ) {
-  vi.stubGlobal("fetch", (url: unknown, init?: RequestInit) =>
-    String(url).endsWith("/api/wave-field")
-      ? waveFetch(url, init)
-      : wakeFetch(url, init),
-  );
+  vi.stubGlobal("fetch", (url: unknown, init?: RequestInit) => {
+    const href = String(url);
+    if (href.endsWith("/api/wave-field")) {
+      return waveFetch(url, init);
+    }
+    if (href.endsWith("/api/duck/explain")) {
+      return duckExplainFetch(url, init);
+    }
+    return wakeFetch(url, init);
+  });
   return waveFetch;
 }
 

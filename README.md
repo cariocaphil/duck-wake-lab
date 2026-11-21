@@ -8,7 +8,7 @@ Interactive educational physics simulator for the V-shaped wake produced by a sw
 
 **Animated swimming:** in that same panel a duck swims through the water with Play / Pause, Reset and 0.5× / 1× / 2× playback controls (see [Animated swimming and wave propagation](#animated-swimming-and-wave-propagation)). Crests stay fixed relative to the duck (steady wake); the scrolling water marks convey motion. The Kelvin line drawing in the Wake panel stays static.
 
-**Later:** a speaking duck that explains the science.
+**Speaking Duck:** a floating chatbot in the bottom-right corner answers physics questions about the current simulation via OpenAI on the backend (see [Speaking Duck](#speaking-duck)).
 
 ## Planned physics levels
 
@@ -23,9 +23,9 @@ The wave-interference view is separate from these two modes: it is an extra visu
 
 **Frontend:** React 19, TypeScript, Vite, SVG and Canvas, Zod, typed-openapi, Vitest, React Testing Library, ESLint
 
-**Backend:** Python 3.12+, uv, FastAPI, NumPy, Pydantic, pytest, Ruff
+**Backend:** Python 3.12+, uv, FastAPI, NumPy, Pydantic, OpenAI Python SDK, pytest, Ruff
 
-No database, authentication, UI component framework, or global state library.
+No database, authentication, UI component framework, LangChain, or global state library.
 
 ## Contract-first architecture
 
@@ -43,9 +43,9 @@ contracts/openapi.yaml
 1. Edit the OpenAPI contract when the API shape changes.
 2. Align FastAPI request/response models to match.
 3. Regenerate the TypeScript client and Zod schemas.
-4. React calls `POST /api/wake` and `POST /api/wave-field` through the generated client (thin `wakeClient` wrapper).
+4. React calls `POST /api/wake`, `POST /api/wave-field`, and `POST /api/duck/explain` through the generated client (thin `wakeClient` wrapper).
 
-Backend OpenAPI drift is covered by `tests/test_openapi_contract.py` (compares the YAML to `app.openapi()` for the wake and wave-field surfaces). Frontend codegen drift is covered by `npm run check:api` (regenerate, then fail if generated files are dirty).
+Backend OpenAPI drift is covered by `tests/test_openapi_contract.py` (compares the YAML to `app.openapi()` for the wake, wave-field, and duck-explain surfaces). Frontend codegen drift is covered by `npm run check:api` (regenerate, then fail if generated files are dirty).
 
 ## Project structure
 
@@ -62,8 +62,9 @@ duck-wake-lab/
 │   │   │   ├── generated/       # typed-openapi output (do not hand-edit)
 │   │   │   └── wakeClient.ts    # Thin wrapper + error mapping
 │   │   ├── components/
+│   │   │   └── duck-chat/       # Floating Speaking Duck chatbot + DuckAvatar
 │   │   ├── animation/           # Pure animation clock (simulation.ts), duck pose helpers
-│   │   ├── hooks/               # useDebouncedQuery, useWakeQuery, useWaveFieldQuery, useWakeAnimation
+│   │   ├── hooks/               # useDebouncedQuery, useWakeQuery, useWaveFieldQuery, useWakeAnimation, useDuckChat
 │   │   ├── waves/waveField.ts   # Pure helpers: family selection, color scale, static and animated pixels
 │   │   ├── pages/WakePage.tsx
 │   │   ├── App.tsx
@@ -73,10 +74,14 @@ duck-wake-lab/
 │   ├── src/duck_wake_lab/
 │   │   ├── main.py
 │   │   ├── schemas.py
+│   │   ├── settings.py          # Lazy OpenAI env reads (explain only)
+│   │   ├── openai_service.py
+│   │   ├── duck_explain_service.py
 │   │   ├── wake_service.py
 │   │   ├── wave_field_service.py
 │   │   └── physics/             # froude, kelvin, advanced, waves
 │   └── tests/
+├── .env.example                 # OpenAI placeholders (not auto-loaded by uvicorn)
 └── README.md
 ```
 
@@ -323,12 +328,51 @@ Response (abridged):
 - `transverse` and `divergent` are rounded to 4 decimals and `combined` is computed from those rounded arrays, so `combined = transverse + divergent` holds to within float tolerance (about 1e-9).
 - All values are finite; repeated identical requests return identical bodies.
 
+## Speaking Duck
+
+A floating duck avatar sits in the bottom-right corner. Click it to open **Ask the Duck**, type a physics question (or pick a suggested one), and the duck answers using OpenAI on the **backend only**. Closing the panel keeps the conversation for as long as the page stays mounted. The wave animation and wake queries are independent of the chat.
+
+Each request sends the current species, duck length, swimming speed, and physics mode. The backend derives Froude number, Kelvin / apparent angles, and illustrative wavelengths from the existing physics domain and injects those numbers into a server-owned system prompt. Client history may include only `user` and `assistant` turns.
+
+### Scientific limitations the duck should respect
+
+The assistant is instructed to distinguish:
+
+1. **Kelvin envelope** — idealized fixed half-angle ≈ 19.47°.
+2. **Advanced apparent wake** — educational Froude-dependent narrowing, not a universal hydrodynamic law.
+3. **Animated interference / dispersion view** — illustrative teaching visualization, **not** an exact fluid-dynamics simulation.
+
+### OpenAI configuration
+
+Placeholders live in [`.env.example`](.env.example):
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Provider secret (backend process only) | _(required for chat)_ |
+| `OPENAI_MODEL` | Chat model id | `gpt-4o-mini` |
+| `OPENAI_TIMEOUT_S` | Request timeout (seconds) | `30` |
+| `OPENAI_MAX_OUTPUT_TOKENS` | Max generated tokens | `300` |
+
+**How variables reach FastAPI:** uvicorn does **not** auto-load `.env`. Copy `.env.example` to `.env` (gitignored) and export into the shell before starting the backend, for example:
+
+```bash
+set -a && source .env && set +a
+cd backend && uv run uvicorn duck_wake_lab.main:app --reload --port 8000
+```
+
+Missing `OPENAI_API_KEY` never blocks app startup or physics endpoints (`/api/health`, `/api/wake`, `/api/wave-field`). Only `POST /api/duck/explain` returns **503** until a key is configured. Automated tests mock OpenAI and never call the live provider.
+
+### API
+
+`POST /api/duck/explain` — see [`contracts/openapi.yaml`](contracts/openapi.yaml). Request: `question`, `context` (species, length, speed, physics_mode), optional `history`. Response: `{ "answer": "..." }`.
+
 ## Local installation
 
 ### Prerequisites
 
 - Node.js 20+
 - [uv](https://docs.astral.sh/uv/)
+- Optional: OpenAI API key for the Speaking Duck chat
 
 ### Backend
 
@@ -346,9 +390,11 @@ npm install
 
 ## Running locally
 
-Backend (from `backend/`):
+Backend (from `backend/`). Physics works without OpenAI; export a key only if you want live chat answers:
 
 ```bash
+# optional Speaking Duck credentials (see .env.example)
+set -a && source ../.env && set +a   # if you keep .env at the repo root
 uv run uvicorn duck_wake_lab.main:app --reload --port 8000
 ```
 
@@ -358,7 +404,7 @@ Frontend (from `frontend/`):
 npm run dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api` to FastAPI on port 8000.
+Open http://localhost:5173. Vite proxies `/api` to FastAPI on port 8000. Use the duck button in the bottom-right to chat.
 
 Health check: http://localhost:8000/api/health → `{"status":"ok"}`
 

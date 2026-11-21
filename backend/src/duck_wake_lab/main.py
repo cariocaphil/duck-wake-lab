@@ -1,10 +1,17 @@
 """FastAPI application entry point for Duck Wake Lab."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from duck_wake_lab.duck_explain_service import (
+    OpenAIConfigError,
+    OpenAIProviderError,
+    explain_duck_physics,
+)
 from duck_wake_lab.schemas import (
+    DuckExplainRequest,
+    DuckExplainResponse,
     WakeRequest,
     WakeResponse,
     WaveFieldRequest,
@@ -53,3 +60,14 @@ def wake(request: WakeRequest) -> WakeResponse:
 def wave_field(request: WaveFieldRequest) -> WaveFieldResponse:
     """Compute the illustrative transverse/divergent wave-interference field."""
     return compute_wave_field(request)
+
+
+@app.post("/api/duck/explain", response_model=DuckExplainResponse)
+def duck_explain(request: DuckExplainRequest) -> DuckExplainResponse:
+    """Ask the speaking duck to explain wake physics for the current simulation."""
+    try:
+        return explain_duck_physics(request)
+    except OpenAIConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except OpenAIProviderError as exc:
+        raise HTTPException(status_code=502, detail=exc.public_message) from exc
