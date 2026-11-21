@@ -503,6 +503,7 @@
 
 .duck-chat-launcher:focus-visible,
 .duck-chat-window__close:focus-visible,
+.duck-speech-controls__button:focus-visible,
 .duck-chat-input__send:focus-visible,
 .duck-chat-suggestions__button:focus-visible,
 .duck-chat-error button:focus-visible {
@@ -545,6 +546,28 @@
   padding: 0.3rem 0.55rem;
   cursor: pointer;
   color: #1a3a4a;
+}
+
+.duck-speech-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.duck-speech-controls__button {
+  border: 1px solid #b7c9d1;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+  cursor: pointer;
+  color: #1a3a4a;
+  font-size: 0.8rem;
+}
+
+.duck-speech-controls__button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .duck-chat-window__log {

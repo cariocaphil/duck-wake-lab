@@ -8,8 +8,8 @@ interface DuckAvatarProps {
 }
 
 /**
- * Side-facing speaking-duck character. Visual state is independent of API I/O
- * so PR #10 can drive `speaking` from audio playback later.
+ * Side-facing speaking-duck character. Visual state is independent of API I/O;
+ * `speaking` is driven by TTS playback via `useDuckSpeech`.
  */
 export function DuckAvatar({
   state,
