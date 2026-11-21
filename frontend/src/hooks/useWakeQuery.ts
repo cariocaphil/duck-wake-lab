@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchWake, WakeApiError } from "../api/wakeClient";
-import type { WakeRequest, WakeResponse } from "../api/types";
+import {
+  fetchWake,
+  WakeApiError,
+  type WakeRequest,
+  type WakeResponse,
+} from "../api/wakeClient";
 import { WAKE_FETCH_DEBOUNCE_MS, type WakeControlValues } from "../types";
 
 export interface WakeQueryState {
@@ -10,7 +14,10 @@ export interface WakeQueryState {
 }
 
 function sameRequest(a: WakeRequest, b: WakeRequest): boolean {
-  return a.duck_length_m === b.duck_length_m && a.speed_m_s === b.speed_m_s;
+  return (
+    a.duck_length_m === b.duck_length_m &&
+    a.swimming_speed_m_s === b.swimming_speed_m_s
+  );
 }
 
 function toErrorMessage(err: unknown): string {
@@ -35,14 +42,14 @@ export function useWakeQuery({
   const abortRef = useRef<AbortController | null>(null);
   const latestRequestRef = useRef<WakeRequest>({
     duck_length_m: duckLengthM,
-    speed_m_s: speedMS,
+    swimming_speed_m_s: speedMS,
   });
   const hasSucceededRef = useRef(false);
 
   useEffect(() => {
     const request: WakeRequest = {
       duck_length_m: duckLengthM,
-      speed_m_s: speedMS,
+      swimming_speed_m_s: speedMS,
     };
     latestRequestRef.current = request;
 

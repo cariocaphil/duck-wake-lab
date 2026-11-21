@@ -1,28 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { computeViewBox, polylinePoints } from "./wakeSvg";
-import { makeWakeResponse } from "../test/wakeFixtures";
+import { makeWakeResponse, point } from "../test/wakeFixtures";
 
 describe("polylinePoints", () => {
   it("negates y for the SVG coordinate system", () => {
-    expect(polylinePoints([0, -1], [0, 0.5])).toBe("0,0 -1,-0.5");
+    expect(polylinePoints([point(0, 0), point(-1, 0.5)])).toBe("0,0 -1,-0.5");
   });
 
-  it("returns an empty string for equal empty arrays", () => {
-    expect(polylinePoints([], [])).toBe("");
-  });
-
-  it("throws when x and y lengths differ", () => {
-    expect(() => polylinePoints([0, -1], [0])).toThrow(/length mismatch/);
+  it("returns an empty string for an empty array", () => {
+    expect(polylinePoints([])).toBe("");
   });
 });
 
 describe("computeViewBox", () => {
   it("adds padding and arrow room beyond the raw wake extents", () => {
     const wake = makeWakeResponse({
-      port_x_m: [0, -5],
-      port_y_m: [0, 1],
-      starboard_x_m: [0, -5],
-      starboard_y_m: [0, -1],
+      port_boundary: [point(0, 0), point(-5, 1)],
+      starboard_boundary: [point(0, 0), point(-5, -1)],
     });
     const [minX, minY, width, height] = computeViewBox(wake)
       .split(" ")
@@ -40,10 +34,8 @@ describe("computeViewBox", () => {
   it("yields finite positive dimensions for a degenerate tiny wake", () => {
     const wake = makeWakeResponse({
       wake_length_m: 0,
-      port_x_m: [0, 0],
-      port_y_m: [0, 0],
-      starboard_x_m: [0, 0],
-      starboard_y_m: [0, 0],
+      port_boundary: [point(0, 0), point(0, 0)],
+      starboard_boundary: [point(0, 0), point(0, 0)],
     });
     const parts = computeViewBox(wake).split(" ").map(Number);
     expect(parts).toHaveLength(4);

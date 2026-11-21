@@ -1,5 +1,13 @@
-import { parseWakeResponse, WakeParseError } from "./parseWakeResponse";
-import type { WakeRequest, WakeResponse } from "./types";
+import { ZodError } from "zod";
+import { createApi } from "./generated/api.client";
+import {
+  TypedStatusError,
+  type Point2D,
+  type WakeRequest,
+  type WakeResponse,
+} from "./generated/client";
+
+export type { Point2D, WakeRequest, WakeResponse };
 
 export class WakeApiError extends Error {
   readonly status: number;
@@ -12,42 +20,59 @@ export class WakeApiError extends Error {
 }
 
 /**
- * Fetch Kelvin wake geometry from the FastAPI backend.
+ * Same-origin base so browser requests hit `/api/...` through the Vite proxy.
+ * Empty string is unsafe: generated client does `new URL(baseUrl + path)`.
+ */
+function apiBaseUrl(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "http://127.0.0.1:5173";
+}
+
+const api = createApi(apiBaseUrl());
+
+/**
+ * Fetch Kelvin wake geometry from the FastAPI backend via the generated client.
  */
 export async function fetchWake(
   request: WakeRequest,
   signal?: AbortSignal,
 ): Promise<WakeResponse> {
-  const response = await fetch("/api/wake", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal,
-  });
+  try {
+    return await api.post("/api/wake", {
+      body: request,
+      overrides: { signal },
+      throwOnStatusError: true,
+    });
+  } catch (err) {
+    // Let abort propagate so useWakeQuery can ignore cancelled requests.
+    if (
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError")
+    ) {
+      throw err;
+    }
 
-  if (!response.ok) {
-    let detail = `Wake request failed (${response.status})`;
-    try {
-      const body: unknown = await response.json();
+    if (err instanceof TypedStatusError) {
+      let detail = `Wake request failed (${err.status})`;
+      const body: unknown = err.response.data;
       if (
         typeof body === "object" &&
         body !== null &&
         "detail" in body &&
         body.detail !== undefined
       ) {
-        detail = `Wake request failed (${response.status}): ${JSON.stringify(body.detail)}`;
+        detail = `Wake request failed (${err.status}): ${JSON.stringify(body.detail)}`;
       }
-    } catch {
-      // Keep the status-based message when the body is not JSON.
+      throw new WakeApiError(detail, err.status);
     }
-    throw new WakeApiError(detail, response.status);
-  }
 
-  try {
-    return parseWakeResponse(await response.json());
-  } catch (err) {
-    const message =
-      err instanceof WakeParseError ? err.message : "Invalid wake response";
-    throw new WakeApiError(message, response.status);
+    // Distinct from HTTP failures: Zod/schema error after a successful status.
+    if (err instanceof ZodError) {
+      throw new WakeApiError("Invalid wake response", 200);
+    }
+
+    throw new WakeApiError("Invalid wake response", 200);
   }
 }

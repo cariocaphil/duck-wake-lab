@@ -1,4 +1,4 @@
-import type { WakeResponse } from "../api/types";
+import type { WakeResponse } from "../api/wakeClient";
 import type { WakeControlValues } from "../types";
 
 interface ParameterSummaryProps {
@@ -30,7 +30,7 @@ export function ParameterSummary({ values, wake }: ParameterSummaryProps) {
             <div>
               <dt>Kelvin half-angle</dt>
               <dd data-testid="wake-half-angle">
-                {wake.half_angle_deg.toFixed(2)}°
+                {wake.kelvin_angle_deg.toFixed(2)}°
               </dd>
             </div>
           </>

@@ -1,4 +1,4 @@
-import type { WakeResponse } from "../api/types";
+import type { Point2D, WakeResponse } from "../api/wakeClient";
 
 const MIN_EXTENT = 1e-6;
 const PAD_X_FRACTION = 0.08;
@@ -6,19 +6,14 @@ const PAD_Y_FRACTION = 0.15;
 const ARROW_PAD_FRACTION = 0.12;
 
 /**
- * Build an SVG polyline `points` string from physics coordinates.
+ * Build an SVG polyline `points` string from physics Point2D coordinates.
  * Negates y so physics-up maps to SVG-down.
  */
-export function polylinePoints(xs: number[], ys: number[]): string {
-  if (xs.length !== ys.length) {
-    throw new Error(
-      `polylinePoints: x/y length mismatch (${xs.length} vs ${ys.length})`,
-    );
-  }
-  if (xs.length === 0) {
+export function polylinePoints(points: Point2D[]): string {
+  if (points.length === 0) {
     return "";
   }
-  return xs.map((x, i) => `${x},${-ys[i]!}`).join(" ");
+  return points.map((point) => `${point.x_m},${-point.y_m}`).join(" ");
 }
 
 /**
@@ -26,8 +21,16 @@ export function polylinePoints(xs: number[], ys: number[]): string {
  * for the swimming-direction arrow ahead of the duck.
  */
 export function computeViewBox(wake: WakeResponse): string {
-  const xs = [...wake.port_x_m, ...wake.starboard_x_m, 0];
-  const physicsYs = [...wake.port_y_m, ...wake.starboard_y_m, 0];
+  const xs = [
+    ...wake.port_boundary.map((p) => p.x_m),
+    ...wake.starboard_boundary.map((p) => p.x_m),
+    0,
+  ];
+  const physicsYs = [
+    ...wake.port_boundary.map((p) => p.y_m),
+    ...wake.starboard_boundary.map((p) => p.y_m),
+    0,
+  ];
   const svgYs = physicsYs.map((y) => -y);
 
   const minX = Math.min(...xs);

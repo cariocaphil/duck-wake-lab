@@ -1,7 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWakeQuery } from "./useWakeQuery";
-import { makeWakeResponse } from "../test/wakeFixtures";
+import {
+  expectPostedWake,
+  makeWakeResponse,
+  mockJsonResponse,
+} from "../test/wakeFixtures";
 import { WAKE_FETCH_DEBOUNCE_MS, type WakeControlValues } from "../types";
 
 beforeEach(() => {
@@ -17,10 +21,7 @@ afterEach(() => {
 describe("useWakeQuery", () => {
   it("fetches wake geometry for the initial values", async () => {
     const wake = makeWakeResponse();
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => wake,
-    });
+    const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse(wake));
     vi.stubGlobal("fetch", fetchMock);
 
     const initial: WakeControlValues = { duckLengthM: 0.5, speedMS: 1.2 };
@@ -32,21 +33,18 @@ describe("useWakeQuery", () => {
     });
 
     expect(result.current.error).toBeNull();
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/wake",
-      expect.objectContaining({
-        body: JSON.stringify({ duck_length_m: 0.5, speed_m_s: 1.2 }),
-      }),
-    );
+    expectPostedWake(fetchMock, {
+      duck_length_m: 0.5,
+      swimming_speed_m_s: 1.2,
+    });
   });
 
   it("fires the first fetch after a 0ms timer flush, not the full debounce", async () => {
     vi.useFakeTimers();
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => makeWakeResponse(),
-    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(mockJsonResponse(makeWakeResponse()));
     vi.stubGlobal("fetch", fetchMock);
 
     renderHook(() => useWakeQuery({ duckLengthM: 0.5, speedMS: 1.2 }));
@@ -64,7 +62,7 @@ describe("useWakeQuery", () => {
 
     const signals: AbortSignal[] = [];
     let callCount = 0;
-    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn().mockImplementation((_url: unknown, init?: RequestInit) => {
       callCount += 1;
       const signal = init?.signal;
       if (signal) {
@@ -79,11 +77,9 @@ describe("useWakeQuery", () => {
         });
       }
 
-      return Promise.resolve({
-        ok: true,
-        json: async () =>
-          makeWakeResponse({ speed_m_s: 2.0, froude_number: 0.9 }),
-      });
+      return Promise.resolve(
+        mockJsonResponse(makeWakeResponse({ froude_number: 0.9 })),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -108,10 +104,10 @@ describe("useWakeQuery", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
-      expect.objectContaining({
-        body: JSON.stringify({ duck_length_m: 0.5, speed_m_s: 2.0 }),
-      }),
+    expectPostedWake(
+      fetchMock,
+      { duck_length_m: 0.5, swimming_speed_m_s: 2.0 },
+      1,
     );
   });
 
@@ -121,20 +117,11 @@ describe("useWakeQuery", () => {
     const wake = makeWakeResponse();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => wake,
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({ detail: "boom" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () =>
-          makeWakeResponse({ duck_length_m: 0.9, speed_m_s: 1.2 }),
-      });
+      .mockResolvedValueOnce(mockJsonResponse(wake))
+      .mockResolvedValueOnce(mockJsonResponse({ detail: "boom" }, 500))
+      .mockResolvedValueOnce(
+        mockJsonResponse(makeWakeResponse({ froude_number: 0.7 })),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const { result, rerender } = renderHook(
@@ -185,17 +172,13 @@ describe("useWakeQuery", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
-    expect(result.current.wake?.duck_length_m).toBe(0.9);
+    expect(result.current.wake?.froude_number).toBe(0.7);
   });
 
   it("surfaces API errors", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: async () => ({ detail: "boom" }),
-      }),
+      vi.fn().mockResolvedValue(mockJsonResponse({ detail: "boom" }, 500)),
     );
 
     const initial: WakeControlValues = { duckLengthM: 0.5, speedMS: 1.2 };
@@ -212,15 +195,8 @@ describe("useWakeQuery", () => {
     const wake = makeWakeResponse();
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => wake,
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        json: async () => ({ detail: "boom" }),
-      });
+      .mockResolvedValueOnce(mockJsonResponse(wake))
+      .mockResolvedValueOnce(mockJsonResponse({ detail: "boom" }, 500));
     vi.stubGlobal("fetch", fetchMock);
 
     const { result, rerender } = renderHook(

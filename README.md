@@ -15,56 +15,85 @@ Interactive educational physics simulator for the V-shaped wake produced by a sw
 
 ## Technology stack
 
-**Frontend:** React 19, TypeScript, Vite, SVG, Vitest, React Testing Library, ESLint
+**Frontend:** React 19, TypeScript, Vite, SVG, Zod, typed-openapi, Vitest, React Testing Library, ESLint
 
 **Backend:** Python 3.12+, uv, FastAPI, NumPy, Pydantic, pytest, Ruff
 
 No database, authentication, UI component framework, or global state library.
 
+## Contract-first architecture
+
+The shared API boundary is a checked-in OpenAPI 3.0.3 document:
+
+[`contracts/openapi.yaml`](contracts/openapi.yaml)
+
+```text
+contracts/openapi.yaml
+        │
+        ├── FastAPI Pydantic models (hand-aligned; drift-tested)
+        └── typed-openapi → frontend/src/api/generated/ (TS client + Zod)
+```
+
+1. Edit the OpenAPI contract when the API shape changes.
+2. Align FastAPI request/response models to match.
+3. Regenerate the TypeScript client and Zod schemas.
+4. React calls `POST /api/wake` through the generated client (thin `wakeClient` wrapper).
+
+Backend OpenAPI drift is covered by `tests/test_openapi_contract.py` (compares the YAML to `app.openapi()` for the wake surface). Frontend codegen drift is covered by `npm run check:api` (regenerate, then fail if generated files are dirty).
+
 ## Project structure
 
 ```text
 duck-wake-lab/
+├── contracts/
+│   └── openapi.yaml             # OpenAPI 3.0.3 source of truth
 ├── shared/
-│   └── wake-parameter-ranges.json   # Length/speed bounds (FE + BE)
+│   └── wake-parameter-ranges.json   # Slider UX bounds only (not API contract)
 ├── frontend/
+│   ├── typed-openapi.config.ts
 │   ├── src/
-│   │   ├── api/                 # Typed POST /api/wake client
-│   │   ├── components/          # Controls + SVG visualization
+│   │   ├── api/
+│   │   │   ├── generated/       # typed-openapi output (do not hand-edit)
+│   │   │   └── wakeClient.ts    # Thin wrapper + error mapping
+│   │   ├── components/
 │   │   ├── hooks/useWakeQuery.ts
-│   │   ├── pages/WakePage.tsx   # State and fetch orchestration
+│   │   ├── pages/WakePage.tsx
 │   │   ├── App.tsx
 │   │   └── main.tsx
 │   └── package.json
 ├── backend/
 │   ├── src/duck_wake_lab/
-│   │   ├── main.py              # FastAPI app + routes
-│   │   ├── schemas.py           # Wake request/response models
-│   │   ├── wake_service.py      # Physics orchestration
-│   │   └── physics/             # UI-agnostic NumPy domain layer
+│   │   ├── main.py
+│   │   ├── schemas.py
+│   │   ├── wake_service.py
+│   │   └── physics/
 │   └── tests/
-├── README.md
-└── .gitignore
+└── README.md
 ```
 
-### Shared parameter ranges
+### Shared parameter ranges vs API contract
 
-Duck length and swimming speed **min/max/step/unit** live in [`shared/wake-parameter-ranges.json`](shared/wake-parameter-ranges.json). The FastAPI `WakeRequest` model and React sliders both load that file (monorepo layout: `shared/` next to `frontend/` and `backend/`). Edit the JSON when changing limits—do not duplicate literals in TypeScript or Pydantic.
+[`shared/wake-parameter-ranges.json`](shared/wake-parameter-ranges.json) bounds the React sliders (length ≈ 0.2–1.0 m, speed ≈ 0.1–3.0 m/s). It is **not** the HTTP API contract.
 
-OpenAPI-based codegen for the frontend is a possible later improvement; not required for this lab.
+The API accepts:
+
+- `duck_length_m` > 0
+- `swimming_speed_m_s` ≥ 0 (including zero)
+
+That split lets backend/physics tests use edge values the UI does not expose.
 
 ## How the interactive slice works
 
 ```text
-WakeControls  →  WakePage (debounce + abort)  →  POST /api/wake
-                                                      ↓
-WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry
+WakeControls  →  WakePage (debounce + abort)  →  generated client → POST /api/wake
+                                                                    ↓
+WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry (Point2D boundaries)
 ```
 
 1. Sliders update length and speed (ranges from `shared/wake-parameter-ranges.json`).
-2. After a short debounce, the frontend posts to FastAPI; in-flight requests are aborted when inputs change again.
+2. After a short debounce, the frontend posts via the generated client; in-flight requests are aborted when inputs change again.
 3. The backend builds `DuckParameters`, computes Froude number, and samples Kelvin envelope arms with `wake_length_m = duck_length_m × 10`.
-4. The SVG renders backend coordinates (no hardcoded V). Froude number and Kelvin half-angle are shown next to the plot.
+4. The SVG renders `port_boundary` / `starboard_boundary` Point2D arrays. Froude number and Kelvin half-angle come from the response.
 
 ### Slider expectations (Kelvin model)
 
@@ -118,46 +147,45 @@ wake = kelvin_wake_boundaries(wake_length_m=5.0, n_points=51)
 
 ## API
 
+Contract: [`contracts/openapi.yaml`](contracts/openapi.yaml)
+
 ### `GET /api/health`
 
 ```json
 { "status": "ok" }
 ```
 
+(Health is FastAPI-only; it is intentionally absent from the checked-in OpenAPI file.)
+
 ### `POST /api/wake`
 
-Request (validated with `allow_inf_nan=False`):
+Request:
 
 ```json
 {
   "duck_length_m": 0.5,
-  "speed_m_s": 1.2
+  "swimming_speed_m_s": 1.2
 }
 ```
 
-| Field | Range |
+| Field | API validation |
 | --- | --- |
-| `duck_length_m` | from `shared/wake-parameter-ranges.json` |
-| `speed_m_s` | from `shared/wake-parameter-ranges.json` |
+| `duck_length_m` | number, exclusive minimum 0 (`> 0`) |
+| `swimming_speed_m_s` | number, minimum 0 (`>= 0`) |
 
-Response (shape):
+Response:
 
 ```json
 {
-  "duck_length_m": 0.5,
-  "speed_m_s": 1.2,
   "froude_number": 0.541,
-  "half_angle_rad": 0.3398,
-  "half_angle_deg": 19.47,
+  "kelvin_angle_deg": 19.47,
   "wake_length_m": 5.0,
-  "port_x_m": [0.0, "..."],
-  "port_y_m": [0.0, "..."],
-  "starboard_x_m": [0.0, "..."],
-  "starboard_y_m": [0.0, "..."]
+  "port_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."],
+  "starboard_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."]
 }
 ```
 
-Coordinate arrays come from the NumPy Kelvin engine (`list[float]` for JSON).
+NumPy arrays are converted to JSON-serializable `Point2D` lists at the API boundary.
 
 ## Local installation
 
@@ -198,6 +226,24 @@ Open http://localhost:5173. Vite proxies `/api` to FastAPI on port 8000.
 
 Health check: http://localhost:8000/api/health → `{"status":"ok"}`
 
+Interactive docs: http://localhost:8000/docs
+
+## Regenerating the TypeScript client
+
+From `frontend/`:
+
+```bash
+npm run generate:api
+```
+
+Configuration lives in [`frontend/typed-openapi.config.ts`](frontend/typed-openapi.config.ts). Output is written to `frontend/src/api/generated/` (client, default fetcher, and `.types.d.ts` sidecar). Do not hand-edit generated files; commit all siblings together.
+
+Verify codegen is up to date:
+
+```bash
+npm run check:api
+```
+
 ## Tests, linting, and type checking
 
 ### Backend
@@ -213,13 +259,13 @@ uv run ruff check .
 ```bash
 cd frontend
 npm test
+npm run check:api
 npm run lint
 npm run typecheck
 ```
 
 ## Features planned for future PRs
 
-- OpenAPI codegen for frontend API types / bounds (optional alternative to shared JSON)
 - Advanced physics level (speed-dependent patterns and visibility)
 - Animation and interactive exploration improvements
 - Educational explanations from a speaking duck

@@ -19,7 +19,7 @@ describe("ParameterSummary", () => {
   it("shows Froude number and Kelvin half-angle when wake is present", () => {
     const wake = makeWakeResponse({
       froude_number: 0.54123,
-      half_angle_deg: 19.47122,
+      kelvin_angle_deg: 19.47122,
     });
     render(<ParameterSummary values={DEFAULT_CONTROLS} wake={wake} />);
 

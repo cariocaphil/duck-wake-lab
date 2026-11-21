@@ -7,7 +7,7 @@ from duck_wake_lab.physics import (
     froude_number,
     kelvin_wake_boundaries,
 )
-from duck_wake_lab.schemas import WakeRequest, WakeResponse
+from duck_wake_lab.schemas import Point2D, WakeRequest, WakeResponse
 
 # Sample extent behind the duck scales with body length (API layer only).
 WAKE_LENGTH_FACTOR = 10.0
@@ -19,7 +19,7 @@ def compute_wake(request: WakeRequest) -> WakeResponse:
     # API/UI: duck_length_m → physics: body_length_m (sole mapping bridge).
     params = DuckParameters(
         body_length_m=request.duck_length_m,
-        speed_m_s=request.speed_m_s,
+        speed_m_s=request.swimming_speed_m_s,
     )
     wake_length_m = request.duck_length_m * WAKE_LENGTH_FACTOR
     wake = kelvin_wake_boundaries(
@@ -27,15 +27,19 @@ def compute_wake(request: WakeRequest) -> WakeResponse:
         n_points=WAKE_N_POINTS,
     )
 
+    port_boundary = [
+        Point2D(x_m=float(x), y_m=float(y))
+        for x, y in zip(wake.port_x_m, wake.port_y_m, strict=True)
+    ]
+    starboard_boundary = [
+        Point2D(x_m=float(x), y_m=float(y))
+        for x, y in zip(wake.starboard_x_m, wake.starboard_y_m, strict=True)
+    ]
+
     return WakeResponse(
-        duck_length_m=request.duck_length_m,
-        speed_m_s=request.speed_m_s,
         froude_number=froude_number(params),
-        half_angle_rad=wake.half_angle_rad,
-        half_angle_deg=wake.half_angle_deg,
+        kelvin_angle_deg=wake.half_angle_deg,
         wake_length_m=wake_length_m,
-        port_x_m=wake.port_x_m.tolist(),
-        port_y_m=wake.port_y_m.tolist(),
-        starboard_x_m=wake.starboard_x_m.tolist(),
-        starboard_y_m=wake.starboard_y_m.tolist(),
+        port_boundary=port_boundary,
+        starboard_boundary=starboard_boundary,
     )

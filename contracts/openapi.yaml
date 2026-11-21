@@ -1,0 +1,117 @@
+openapi: 3.0.3
+info:
+  title: Duck Wake Lab
+  description: Contract for the Duck Wake Lab Kelvin wake API.
+  version: 0.1.0
+paths:
+  /api/wake:
+    post:
+      operationId: computeWake
+      summary: Compute Kelvin wake envelope geometry
+      description: >
+        Computes Froude number and Kelvin wake boundary coordinates for a duck
+        body length and swimming speed. The Kelvin half-angle is fixed at
+        arcsin(1/3) in this simplified model.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WakeRequest"
+      responses:
+        "200":
+          description: Wake geometry and physics metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WakeResponse"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+components:
+  schemas:
+    Point2D:
+      type: object
+      required:
+        - x_m
+        - y_m
+      properties:
+        x_m:
+          type: number
+          description: X coordinate in meters
+        y_m:
+          type: number
+          description: Y coordinate in meters
+      additionalProperties: false
+    WakeRequest:
+      type: object
+      required:
+        - duck_length_m
+        - swimming_speed_m_s
+      properties:
+        duck_length_m:
+          type: number
+          description: Duck body length in meters
+          minimum: 0
+          exclusiveMinimum: true
+        swimming_speed_m_s:
+          type: number
+          description: Swimming speed in meters per second
+          minimum: 0
+      additionalProperties: false
+    WakeResponse:
+      type: object
+      required:
+        - froude_number
+        - kelvin_angle_deg
+        - wake_length_m
+        - port_boundary
+        - starboard_boundary
+      properties:
+        froude_number:
+          type: number
+          description: Froude number Fr = v / sqrt(g L)
+        kelvin_angle_deg:
+          type: number
+          description: Kelvin wake half-angle in degrees (arcsin(1/3))
+        wake_length_m:
+          type: number
+          description: Sampled wake extent behind the duck in meters
+        port_boundary:
+          type: array
+          description: Port-side Kelvin envelope arm (physics coordinates)
+          items:
+            $ref: "#/components/schemas/Point2D"
+        starboard_boundary:
+          type: array
+          description: Starboard-side Kelvin envelope arm (physics coordinates)
+          items:
+            $ref: "#/components/schemas/Point2D"
+      additionalProperties: false
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+        msg:
+          type: string
+        type:
+          type: string
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationError"
