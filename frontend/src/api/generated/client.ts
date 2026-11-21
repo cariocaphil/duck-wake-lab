@@ -8,10 +8,10 @@ export type Point2D = __TypedOpenapi.Schemas.Point2D;
 export const Point2D = z.strictObject({ x_m: z.number(), y_m: z.number() });
 
 export type WakeRequest = __TypedOpenapi.Schemas.WakeRequest;
-export const WakeRequest = z.strictObject({ duck_length_m: z.number().gt(0), swimming_speed_m_s: z.number().min(0) });
+export const WakeRequest = z.strictObject({ duck_length_m: z.number().gt(0), swimming_speed_m_s: z.number().min(0), physics_mode: z.enum(["kelvin", "advanced"]).default("kelvin") });
 
 export type WakeResponse = __TypedOpenapi.Schemas.WakeResponse;
-export const WakeResponse = z.strictObject({ froude_number: z.number(), kelvin_angle_deg: z.number(), wake_length_m: z.number(), port_boundary: z.array(Point2D), starboard_boundary: z.array(Point2D) });
+export const WakeResponse = z.strictObject({ physics_mode: z.enum(["kelvin", "advanced"]), froude_number: z.number(), kelvin_angle_deg: z.number(), apparent_angle_deg: z.number(), wake_length_m: z.number(), port_boundary: z.array(Point2D), starboard_boundary: z.array(Point2D), apparent_port_boundary: z.array(Point2D), apparent_starboard_boundary: z.array(Point2D) });
 
 export type ValidationError = __TypedOpenapi.Schemas.ValidationError;
 export const ValidationError = z.strictObject({ loc: z.array(z.union([z.string(), z.number().int()])), msg: z.string(), type: z.string() });

@@ -135,6 +135,12 @@ def test_openapi_contract_matches_fastapi_wake_surface() -> None:
     assert length["minimum"] == 0
     assert length["exclusiveMinimum"] is True
 
+    # physics_mode is optional, defaults to kelvin, and accepts two values.
+    mode = wake_request["properties"]["physics_mode"]
+    assert mode["enum"] == ["kelvin", "advanced"]
+    assert mode["default"] == "kelvin"
+    assert "physics_mode" not in wake_request["required"]
+
     # Cross-check $refs resolve in both documents.
     for spec in (checked_in, runtime):
         post = spec["paths"]["/api/wake"]["post"]

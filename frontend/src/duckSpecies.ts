@@ -23,3 +23,14 @@ export const DEFAULT_DUCK_SPECIES: DuckSpecies = "mallard";
 export function isDuckSpecies(value: string): value is DuckSpecies {
   return DUCK_SPECIES_IDS.some((id) => id === value);
 }
+
+/** Slider step is 0.01 m, so lengths closer than this are the same length. */
+const CUSTOM_LENGTH_TOLERANCE_M = 0.005;
+
+/** True when the length differs from the species preset's default length. */
+export function isCustomLength(species: DuckSpecies, lengthM: number): boolean {
+  return (
+    Math.abs(lengthM - DUCK_SPECIES_PRESETS[species].defaultLengthM) >
+    CUSTOM_LENGTH_TOLERANCE_M
+  );
+}

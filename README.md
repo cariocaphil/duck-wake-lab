@@ -2,16 +2,16 @@
 
 Interactive educational physics simulator for the V-shaped wake produced by a swimming duck.
 
-**Today:** pick a duck species (Teal 0.35 m, Mallard 0.55 m, Muscovy 0.75 m; illustrative default body lengths only) and adjust duck length and swimming speed in the browser; FastAPI computes Kelvin wake geometry with the NumPy physics engine; React draws the result as an SVG and shows Froude number and Kelvin half-angle. Selecting a species resets the length to its default and keeps the speed; the length can then be overridden manually without changing the species.
+**Today:** pick a duck species (Teal 0.35 m, Mallard 0.55 m, Muscovy 0.75 m; illustrative default body lengths only), adjust duck length and swimming speed, and choose a physics mode (Kelvin or Advanced) in the browser; FastAPI computes wake geometry with the NumPy physics engine; React draws the result as an SVG and shows Froude number and wake half-angles. Selecting a species resets the length to its default and keeps the speed; the length can then be overridden manually without changing the species (the UI then marks it as a "custom length").
 
-**Later:** animated swimming, advanced speed-dependent physics, and a speaking duck that explains the science.
+**Later:** animated swimming and a speaking duck that explains the science.
 
 ## Planned physics levels
 
 | Level | Name | Description |
 | --- | --- | --- |
-| 1 | **Kelvin Wake** (current) | Idealized deep-water envelope; fixed half-angle ≈ 19.47° |
-| 2 | **Advanced Physics** (planned) | Speed-dependent wave patterns and wave visibility |
+| 1 | **Kelvin** (default) | Idealized deep-water envelope; fixed half-angle ≈ 19.47° |
+| 2 | **Advanced** | Kelvin envelope plus a simplified, Froude-dependent *apparent* wake angle (educational approximation) |
 
 ## Technology stack
 
@@ -91,9 +91,9 @@ WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry (Point2D boundaries)
 ```
 
 1. Sliders update length and speed (ranges from `shared/wake-parameter-ranges.json`).
-2. After a short debounce, the frontend posts via the generated client; in-flight requests are aborted when inputs change again.
-3. The backend builds `DuckParameters`, computes Froude number, and samples Kelvin envelope arms with `wake_length_m = duck_length_m × 10`.
-4. The SVG renders `port_boundary` / `starboard_boundary` Point2D arrays. Froude number and Kelvin half-angle come from the response.
+2. The physics mode selector (Kelvin or Advanced) is part of the same controlled state. After a short debounce, the frontend posts via the generated client; in-flight requests are aborted when any input (including the mode) changes again, and stale responses are ignored.
+3. The backend builds `DuckParameters`, computes Froude number, and samples Kelvin envelope arms with `wake_length_m = duck_length_m × 10`. In advanced mode it also samples the apparent wake arms.
+4. The SVG renders `port_boundary` / `starboard_boundary` Point2D arrays (Kelvin envelope), and in advanced mode `apparent_port_boundary` / `apparent_starboard_boundary` plus a legend. Froude number and angles come from the response.
 
 ### Slider expectations (Kelvin model)
 
@@ -102,6 +102,7 @@ WakeVisualization (SVG + Fr / θ)  ←  JSON wake geometry (Point2D boundaries)
 | Duck length | Wake sample extent grows or shrinks |
 | Swimming speed | Froude number changes; V geometry does **not** widen |
 | Both | Kelvin half-angle stays ≈ 19.47° |
+| Physics mode → Advanced | Kelvin envelope stays dashed and fixed; a narrower apparent wake appears once `Fr > √2 ≈ 1.41` |
 
 ## Physics engine
 
@@ -126,8 +127,35 @@ The duck sits at the origin and swims in \(+x\); wake arms extend in \(-x\) at \
 ### Limitations
 
 - Envelope arms only (no transverse/divergent interference pattern)
-- No speed-dependent wake angle or wave visibility
+- The Kelvin envelope angle has no speed dependence (see Advanced mode below for the apparent wake)
 - Idealized deep-water assumption
+
+### Physics modes
+
+| Mode | Meaning |
+| --- | --- |
+| `kelvin` (default) | Classical fixed envelope, half-angle ≈ 19.47°. The apparent wake equals the envelope. |
+| `advanced` | The Kelvin envelope remains fixed at ≈ 19.47°, plus an *apparent wake*: the narrower region where the most visible waves may concentrate at higher Froude numbers. |
+
+The two angles are distinct concepts. The **Kelvin envelope** is the classical outer V and never changes with speed. The **apparent wake** is the dominant visible wave pattern. The advanced model never reduces the envelope angle.
+
+#### Advanced approximation
+
+\[
+\theta_{\text{apparent}} = \min\!\left(\theta_{\text{Kelvin}},\ \arctan\frac{0.5}{Fr}\right),
+\qquad
+\theta_{\text{Kelvin}} = \arcsin\frac{1}{3}
+\]
+
+with the length-based Froude number \(Fr = v / \sqrt{gL}\). The apparent angle equals the Kelvin angle until \(Fr > 0.5 / \tan\theta_{\text{Kelvin}} = \sqrt{2} \approx 1.41\), and decreases with speed above that. At \(Fr = 0\) it is the Kelvin angle. Implemented in `physics/advanced.py` (`apparent_wake_half_angle_rad`).
+
+**This is an illustrative educational approximation, not a universally valid hydrodynamic law.** Limitations:
+
+- The coefficient 0.5 is not derived from the water-wave equations.
+- No wave interference, amplitude field, CFD, or particle simulation; the wake is drawn as straight arms.
+- Deep water only: no finite depth, surface tension, or hull-shape effects.
+- Froude number is based on body length, as for ships; a duck is not a ship hull.
+- With the slider ranges (length 0.2 to 1.0 m, speed 0.1 to 3.0 m/s), the narrowing is only reachable for short ducks at high speed (Teal needs more than about 2.6 m/s; Mallard and Muscovy cannot reach `Fr > 1.41`). Below that threshold Advanced mode looks identical to Kelvin, and the UI says so. Such speeds are far beyond real duck swimming.
 
 ### Usage example
 
@@ -164,7 +192,8 @@ Request:
 ```json
 {
   "duck_length_m": 0.5,
-  "swimming_speed_m_s": 1.2
+  "swimming_speed_m_s": 1.2,
+  "physics_mode": "kelvin"
 }
 ```
 
@@ -172,18 +201,27 @@ Request:
 | --- | --- |
 | `duck_length_m` | number, exclusive minimum 0 (`> 0`) |
 | `swimming_speed_m_s` | number, minimum 0 (`>= 0`) |
+| `physics_mode` | optional; `"kelvin"` (default) or `"advanced"`; other values return 422 |
 
 Response:
 
 ```json
 {
+  "physics_mode": "kelvin",
   "froude_number": 0.541,
   "kelvin_angle_deg": 19.47,
+  "apparent_angle_deg": 19.47,
   "wake_length_m": 5.0,
   "port_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."],
-  "starboard_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."]
+  "starboard_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."],
+  "apparent_port_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."],
+  "apparent_starboard_boundary": [{ "x_m": 0.0, "y_m": 0.0 }, "..."]
 }
 ```
+
+- All angles are **half-angles in degrees**; all coordinates are in meters.
+- `kelvin_angle_deg` and `port_boundary` / `starboard_boundary` are the Kelvin envelope and are identical in every mode.
+- `apparent_angle_deg` and `apparent_*_boundary` are the apparent wake. In `kelvin` mode they equal the envelope; in `advanced` mode `apparent_angle_deg <= kelvin_angle_deg`.
 
 NumPy arrays are converted to JSON-serializable `Point2D` lists at the API boundary.
 
@@ -266,6 +304,5 @@ npm run typecheck
 
 ## Features planned for future PRs
 
-- Advanced physics level (speed-dependent patterns and visibility)
 - Animation and interactive exploration improvements
 - Educational explanations from a speaking duck

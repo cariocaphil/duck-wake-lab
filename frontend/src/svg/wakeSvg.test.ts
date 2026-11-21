@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeViewBox, polylinePoints } from "./wakeSvg";
+import { computeViewBox, polylinePoints, wedgePoints } from "./wakeSvg";
 import { makeWakeResponse, point } from "../test/wakeFixtures";
 
 describe("polylinePoints", () => {
@@ -43,4 +43,15 @@ describe("computeViewBox", () => {
     expect(parts[2]).toBeGreaterThan(0);
     expect(parts[3]).toBeGreaterThan(0);
   });
+
+describe("wedgePoints", () => {
+  it("walks the port arm out and the starboard arm back", () => {
+    expect(
+      wedgePoints(
+        [point(0, 0), point(-1, 0.5)],
+        [point(0, 0), point(-1, -0.5)],
+      ),
+    ).toBe("0,0 -1,-0.5 -1,0.5 0,0");
+  });
+});
 });

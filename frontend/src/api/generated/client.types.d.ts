@@ -20,16 +20,28 @@ export type WakeRequest = {
    * Swimming speed in meters per second
    */
   swimming_speed_m_s: number;
+  /**
+   * Physics model. "kelvin" is the classical fixed envelope (default); "advanced" adds a simplified Froude-dependent apparent wake.
+   */
+  physics_mode?: ("kelvin" | "advanced");
 }
 export type WakeResponse = {
+  /**
+   * Physics mode that produced this response
+   */
+  physics_mode: ("kelvin" | "advanced");
   /**
    * Froude number Fr = v / sqrt(g L)
    */
   froude_number: number;
   /**
-   * Kelvin wake half-angle in degrees (arcsin(1/3))
+   * Kelvin envelope half-angle in degrees (arcsin(1/3)); fixed
    */
   kelvin_angle_deg: number;
+  /**
+   * Apparent (dominant visible) wake half-angle in degrees. Equals kelvin_angle_deg in kelvin mode; never exceeds it.
+   */
+  apparent_angle_deg: number;
   /**
    * Sampled wake extent behind the duck in meters
    */
@@ -42,6 +54,14 @@ export type WakeResponse = {
    * Starboard-side Kelvin envelope arm (physics coordinates)
    */
   starboard_boundary: Array<Point2D>;
+  /**
+   * Port-side apparent wake arm (equals the envelope in kelvin mode)
+   */
+  apparent_port_boundary: Array<Point2D>;
+  /**
+   * Starboard-side apparent wake arm (equals the envelope in kelvin mode)
+   */
+  apparent_starboard_boundary: Array<Point2D>;
 }
 export type ValidationError = { loc: Array<(string | number)>, msg: string, type: string }
 export type HTTPValidationError = Partial<{ detail: Array<ValidationError> }>
@@ -53,7 +73,7 @@ export type HTTPValidationError = Partial<{ detail: Array<ValidationError> }>
   // <Endpoints>
   
   /**
- * Computes Froude number and Kelvin wake boundary coordinates for a duck body length and swimming speed. The Kelvin half-angle is fixed at arcsin(1/3) in this simplified model.
+ * Computes Froude number and wake boundary coordinates for a duck body length and swimming speed. The Kelvin envelope half-angle is fixed at arcsin(1/3) in every mode. In "advanced" mode an additional, narrower apparent wake is returned using the simplified educational approximation min(theta_kelvin, atan(0.5 / Fr)); this is not a universally valid hydrodynamic law. All angles are half-angles in degrees; all coordinates are in meters.
  */
 export type post_ComputeWake = {
       method: "POST",

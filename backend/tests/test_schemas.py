@@ -16,8 +16,10 @@ def _point(x: float, y: float) -> Point2D:
 
 def _valid_kwargs() -> dict:
     return {
+        "physics_mode": "kelvin",
         "froude_number": 0.541,
         "kelvin_angle_deg": math.degrees(math.asin(1.0 / 3.0)),
+        "apparent_angle_deg": math.degrees(math.asin(1.0 / 3.0)),
         "wake_length_m": 5.0,
         "port_boundary": [
             _point(0.0, 0.0),
@@ -25,6 +27,16 @@ def _valid_kwargs() -> dict:
             _point(-5.0, 1.77),
         ],
         "starboard_boundary": [
+            _point(0.0, 0.0),
+            _point(-2.5, -0.88),
+            _point(-5.0, -1.77),
+        ],
+        "apparent_port_boundary": [
+            _point(0.0, 0.0),
+            _point(-2.5, 0.88),
+            _point(-5.0, 1.77),
+        ],
+        "apparent_starboard_boundary": [
             _point(0.0, 0.0),
             _point(-2.5, -0.88),
             _point(-5.0, -1.77),
@@ -45,10 +57,37 @@ def test_wake_response_rejects_mismatched_array_lengths() -> None:
         WakeResponse(**kwargs)
 
 
+def test_wake_response_rejects_mismatched_apparent_array_lengths() -> None:
+    kwargs = _valid_kwargs()
+    kwargs["apparent_port_boundary"] = [_point(0.0, 0.0), _point(-2.5, 0.5)]
+    with pytest.raises(ValidationError, match="same length"):
+        WakeResponse(**kwargs)
+
+
+def test_wake_response_rejects_non_origin_apparent_start() -> None:
+    kwargs = _valid_kwargs()
+    kwargs["apparent_starboard_boundary"] = [
+        _point(0.0, 0.1),
+        _point(-2.5, -0.5),
+        _point(-5.0, -1.0),
+    ]
+    with pytest.raises(ValidationError, match="origin"):
+        WakeResponse(**kwargs)
+
+
+def test_wake_response_rejects_unknown_physics_mode() -> None:
+    kwargs = _valid_kwargs()
+    kwargs["physics_mode"] = "turbulent"
+    with pytest.raises(ValidationError):
+        WakeResponse(**kwargs)
+
+
 def test_wake_response_rejects_too_few_points() -> None:
     kwargs = _valid_kwargs()
     kwargs["port_boundary"] = [_point(0.0, 0.0)]
     kwargs["starboard_boundary"] = [_point(0.0, 0.0)]
+    kwargs["apparent_port_boundary"] = [_point(0.0, 0.0)]
+    kwargs["apparent_starboard_boundary"] = [_point(0.0, 0.0)]
     with pytest.raises(ValidationError, match="at least 2"):
         WakeResponse(**kwargs)
 

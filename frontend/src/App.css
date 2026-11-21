@@ -57,6 +57,16 @@
   width: 100%;
 }
 
+.control-hint {
+  margin: -0.4rem 0 1rem;
+  font-size: 0.85rem;
+  color: #4a6670;
+}
+
+.control-hint--note {
+  font-style: italic;
+}
+
 .svg-container {
   width: 100%;
   height: min(420px, 55vh);
@@ -94,6 +104,70 @@
 
 .wake-arm-starboard {
   stroke: #d6ecf3;
+}
+
+.wake-envelope-arm {
+  stroke: #f4f7fa;
+  stroke-width: 0.04;
+  stroke-dasharray: 0.2 0.12;
+  opacity: 0.8;
+}
+
+.wake-apparent-region {
+  fill: #ffffff;
+  fill-opacity: 0.28;
+  stroke: none;
+}
+
+.wake-apparent-arm {
+  stroke: #f5c542;
+  stroke-width: 0.08;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wake-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.wake-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.wake-legend-swatch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 1.8rem;
+  height: 1rem;
+  border-radius: 3px;
+  background: #4a90a4;
+}
+
+.wake-legend-swatch::after {
+  content: "";
+  position: absolute;
+  left: 0.2rem;
+  right: 0.2rem;
+  top: 50%;
+}
+
+.wake-legend-swatch--envelope::after {
+  border-top: 2px dashed #f4f7fa;
+}
+
+.wake-legend-swatch--apparent::after {
+  border-top: 4px solid #f5c542;
+  margin-top: -2px;
 }
 
 .wake-duck {
@@ -149,6 +223,12 @@
   font-size: 1.05rem;
   font-weight: 600;
   color: #1a3a4a;
+}
+
+.summary-note {
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+  color: #4a6670;
 }
 
 @media (max-width: 760px) {

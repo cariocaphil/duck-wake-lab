@@ -3,6 +3,7 @@ import { fetchWake, WakeApiError } from "./wakeClient";
 import {
   assertWakeResponseSchema,
   expectPostedWake,
+  makeAdvancedWakeResponse,
   makeWakeResponse,
   mockJsonResponse,
 } from "../test/wakeFixtures";
@@ -22,6 +23,7 @@ describe("fetchWake", () => {
     const result = await fetchWake({
       duck_length_m: 0.5,
       swimming_speed_m_s: 1.2,
+      physics_mode: "kelvin",
     });
 
     expect(result).toEqual(wake);
@@ -45,7 +47,11 @@ describe("fetchWake", () => {
     );
 
     await expect(
-      fetchWake({ duck_length_m: 0.5, swimming_speed_m_s: 1.2 }),
+      fetchWake({
+        duck_length_m: 0.5,
+        swimming_speed_m_s: 1.2,
+        physics_mode: "kelvin",
+      }),
     ).rejects.toSatisfy(
       (err: unknown) =>
         err instanceof WakeApiError &&
@@ -66,12 +72,36 @@ describe("fetchWake", () => {
     );
 
     await expect(
-      fetchWake({ duck_length_m: 0.5, swimming_speed_m_s: 1.2 }),
+      fetchWake({
+        duck_length_m: 0.5,
+        swimming_speed_m_s: 1.2,
+        physics_mode: "kelvin",
+      }),
     ).rejects.toSatisfy(
       (err: unknown) =>
         err instanceof WakeApiError &&
         err.status === 200 &&
         err.message === "Invalid wake response",
     );
+  });
+
+  it("posts physics_mode advanced and parses both angles", async () => {
+    const wake = makeAdvancedWakeResponse();
+    assertWakeResponseSchema(wake);
+    const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse(wake));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchWake({
+      duck_length_m: 0.35,
+      swimming_speed_m_s: 3.0,
+      physics_mode: "advanced",
+    });
+
+    expect(result.apparent_angle_deg).toBeLessThan(result.kelvin_angle_deg);
+    expectPostedWake(fetchMock, {
+      duck_length_m: 0.35,
+      swimming_speed_m_s: 3.0,
+      physics_mode: "advanced",
+    });
   });
 });
